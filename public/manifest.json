@@ -1,0 +1,17 @@
+{
+  "name": "Myanmar AI Voice Studio",
+  "short_name": "AI Voice",
+  "description": "100% Human-Like Neural AI Text to Speech Studio for Myanmar and English",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#020617",
+  "theme_color": "#020617",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "192x192 512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

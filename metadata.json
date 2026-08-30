@@ -1,0 +1,6 @@
+{
+  "name": "Human-Like AI Text to Speech Studio",
+  "description": "Ultra-realistic human-like Text-to-Speech studio with rich emotional tones, natural pacing, and Burmese (မြန်မာ) & multilingual support powered by Gemini Neural Audio.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
