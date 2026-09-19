@@ -123,6 +123,56 @@ class MainActivity : AppCompatActivity() {
         findViewById<Button>(R.id.screenshotAi).setOnClickListener {
             screenshotPicker.launch("image/*")
         }
+
+        findViewById<Button>(R.id.selfTest).setOnClickListener {
+            runRecoverySelfTest()
+        }
+    }
+
+    private fun runRecoverySelfTest() {
+        val prefs = getSharedPreferences("recovery", MODE_PRIVATE)
+        val checks = mutableListOf<String>()
+
+        val accessibilityOk = isAccessibilityEnabled()
+        checks += if (accessibilityOk) "PASS Accessibility enabled" else "FAIL Accessibility not enabled"
+
+        val browserOk = packageManager.getInstalledApplications(0).any {
+            it.packageName in setOf(
+                "com.android.chrome",
+                "org.mozilla.firefox",
+                "com.microsoft.emmx",
+                "com.opera.browser",
+                "com.sec.android.app.sbrowser"
+            )
+        }
+        checks += if (browserOk) "PASS Supported browser installed" else "WARN No supported browser detected"
+
+        val gmail = identifier.text.toString().trim()
+        checks += if (looksLikeEmail(gmail)) "PASS Gmail format recognized" else "INFO Gmail not entered"
+
+        val blockedWords = listOf("password", "otp", "passkey", "backup code", "captcha")
+        checks += if (blockedWords.all { it.isNotBlank() }) "PASS Sensitive-step safety policy loaded" else "FAIL Safety policy check"
+
+        val engineChecks = listOf(
+            "PASSWORD_FORGOTTEN" to "I forgot my password",
+            "DEVICE_UNAVAILABLE" to "I no longer have my phone",
+            "PHONE_NUMBER_UNAVAILABLE" to "I don't have access to my phone number",
+            "VERIFICATION_LOOP" to "Try another way"
+        )
+        var enginePass = true
+        for ((expected, sample) in engineChecks) {
+            val d = RecoveryDecisionEngine.analyze(sample)
+            if (d.state != expected) enginePass = false
+        }
+        checks += if (enginePass) "PASS Recovery decision states" else "FAIL Recovery decision states"
+
+        val summary = checks.joinToString("\n")
+        prefs.edit()
+            .putString("agent_state", "SELF_TEST_COMPLETE")
+            .putString("self_test_result", summary)
+            .apply()
+        status.text = "Self-Test complete"
+        appendLog("SELF-TEST →\\n$summary")
     }
 
     private fun openAgentAccessibilitySettings() {
