@@ -1,0 +1,2 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources><string name="app_name">Recovery AI</string><string name="accessibility_description">Reads visible recovery-page UI to guide safe account recovery. It does not read or enter passwords, OTPs, passkeys or backup codes.</string></resources>
