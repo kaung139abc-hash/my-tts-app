@@ -12,14 +12,14 @@ object CloudAiClient {
     private val client = OkHttpClient()
     private val jsonType = "application/json".toMediaType()
 
-    fun analyze(apiKey: String, screenText: String, callback: (String) -> Unit) {
+    fun analyze(screenText: String, apiKey: String, callback: (String) -> Unit) {
         Thread {
             val prompt = """
 You are a cautious account-recovery assistant. Analyze the visible UI text below.
 Identify the service/state, explain the next legitimate recovery step, and say whether
 the user must perform ownership verification. Never ask for, reveal, store, or fill
 passwords, OTPs, passkeys, backup codes, or CAPTCHA answers. Do not bypass security.
-Return concise plain text with: STATE, NEXT STEP, USER ACTION, SAFE AUTOMATION.
+Return concise JSON only with these keys: STATE, NEXT_STEP, USER_ACTION, SAFE_AUTOMATION.\nSTATE must be one of RECOVERY_PAGE, IDENTIFIER, ALTERNATIVE_METHOD, MANUAL_VERIFICATION,\nRECOVERED, NOT_FOUND, UNKNOWN. SAFE_AUTOMATION must be one of NONE, FILL_IDENTIFIER,\nCLICK_TRY_ANOTHER_WAY, CLICK_CONTINUE, CLICK_NEXT, WAIT_USER. Never output credentials or secrets.
 VISIBLE UI:
 ${screenText}
 """.trimIndent()
