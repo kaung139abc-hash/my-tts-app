@@ -110,6 +110,8 @@ class RecoveryAccessibilityService : AccessibilityService() {
     }
 
     private fun announceState(next: State) {
+        getSharedPreferences("recovery", MODE_PRIVATE).edit()
+            .putString("agent_state", next.name).apply()
         val message = when (next) {
             State.RECOVERY_PAGE -> "Recovery AI: recovery page detected"
             State.IDENTIFIER_READY -> "Recovery AI: identifier ready"
