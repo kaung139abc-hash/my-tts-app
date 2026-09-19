@@ -1,5 +1,6 @@
 package com.kaung.recoveryagent
 
+import android.content.ComponentName
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
@@ -100,8 +101,7 @@ class MainActivity : AppCompatActivity() {
         }
 
         findViewById<Button>(R.id.accessibility).setOnClickListener {
-            appendLog("→ Opening Accessibility settings")
-            startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+            openAgentAccessibilitySettings()
         }
 
         findViewById<Button>(R.id.google).setOnClickListener {
@@ -122,6 +122,35 @@ class MainActivity : AppCompatActivity() {
 
         findViewById<Button>(R.id.screenshotAi).setOnClickListener {
             screenshotPicker.launch("image/*")
+        }
+    }
+
+    private fun openAgentAccessibilitySettings() {
+        appendLog("→ Opening Recovery AI Accessibility settings")
+        status.text = "Opening Recovery AI Accessibility…"
+
+        val component = ComponentName(this, RecoveryAccessibilityService::class.java)
+
+        try {
+            val detailsIntent = Intent(Settings.ACTION_ACCESSIBILITY_DETAILS_SETTINGS).apply {
+                data = Uri.parse("package:$packageName")
+                putExtra(
+                    Settings.EXTRA_ACCESSIBILITY_COMPONENT_NAME,
+                    component.flattenToString()
+                )
+            }
+            startActivity(detailsIntent)
+        } catch (_: Exception) {
+            try {
+                startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+            } catch (_: Exception) {
+                startActivity(
+                    Intent(
+                        Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                        Uri.parse("package:$packageName")
+                    )
+                )
+            }
         }
     }
 
@@ -146,7 +175,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun renderLog(value: String) {
-        liveLog.text = if (value.isBlank()) "LIVE AGENT LOG\nWaiting to start…" else "LIVE AGENT LOG\n$value"
+        liveLog.text = if (value.isBlank()) "LIVE AGENT LOG\\nWaiting to start…" else "LIVE AGENT LOG\\n$value"
     }
 
     private fun shareScreenshotToAi(uri: Uri) {
