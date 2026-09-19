@@ -37,7 +37,7 @@ class MainActivity : AppCompatActivity() {
         apiKey = findViewById(R.id.apiKey)
 
         val prefs = getSharedPreferences("recovery", MODE_PRIVATE)
-        apiKey.setText(prefs.getString("openai_api_key", ""))
+        apiKey.setText(prefs.getString("openai_api_key", "").orEmpty())
         identifier.setText(prefs.getString("identifier", ""))
         renderLog(prefs.getString("agent_log", ""))
 
