@@ -2,6 +2,8 @@ package com.kaung.recoveryagent
 
 import android.accessibilityservice.AccessibilityService
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
 import android.widget.Toast
@@ -9,6 +11,7 @@ import android.widget.Toast
 class RecoveryAccessibilityService : AccessibilityService() {
     private var lastState = ""
     private var lastActionAt = 0L
+    private val mainHandler = Handler(Looper.getMainLooper())
 
     private val sensitive = Regex(
         "password|passcode|verification code|otp|one[- ]time code|backup code|passkey|security code",
@@ -20,7 +23,7 @@ class RecoveryAccessibilityService : AccessibilityService() {
         RegexOption.IGNORE_CASE
     )
 
-    // Navigation-only actions. Never click buttons that request or change credentials.
+    // Navigation-only actions. Never click controls that request or change credentials.
     private val safeNavigation = listOf(
         "try again",
         "try another way",
@@ -54,7 +57,9 @@ class RecoveryAccessibilityService : AccessibilityService() {
         val filled = autoFillSafeIdentifier(root, state)
         if (filled) {
             // Give the page a moment to update before looking for the next safe button.
-            root.postDelayed({ clickSafeNavigation(rootInActiveWindow) }, 350)
+            mainHandler.postDelayed({
+                clickSafeNavigation(rootInActiveWindow)
+            }, 350L)
         } else {
             clickSafeNavigation(root)
         }
@@ -139,7 +144,7 @@ class RecoveryAccessibilityService : AccessibilityService() {
                 lastActionAt = now
                 Toast.makeText(
                     this,
-                    "Recovery AI: continuing with "$match"",
+                    "Recovery AI: continuing with \"$match\"",
                     Toast.LENGTH_SHORT
                 ).show()
                 return
@@ -156,7 +161,7 @@ class RecoveryAccessibilityService : AccessibilityService() {
                     lastActionAt = now
                     Toast.makeText(
                         this,
-                        "Recovery AI: continuing with "$match"",
+                        "Recovery AI: continuing with \"$match\"",
                         Toast.LENGTH_SHORT
                     ).show()
                     return
@@ -203,7 +208,7 @@ class RecoveryAccessibilityService : AccessibilityService() {
 
         val t = nodeText(node)
         if (t.isNotBlank() && !sensitive.containsMatchIn(t)) {
-            out.append(t).append('\n')
+            out.append(t).append('\\n')
         }
 
         for (i in 0 until node.childCount) {
