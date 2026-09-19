@@ -159,8 +159,8 @@ class MainActivity : AppCompatActivity() {
     private fun appendLog(message: String) {
         val prefs = getSharedPreferences("recovery", MODE_PRIVATE)
         val old = prefs.getString("agent_log", "") ?: ""
-        val lines = (old.split("\\n").filter { it.isNotBlank() } + message).takeLast(40)
-        val joined = lines.joinToString("\\n")
+        val lines = (old.split("\n").filter { it.isNotBlank() } + message).takeLast(40)
+        val joined = lines.joinToString("\n")
         prefs.edit().putString("agent_log", joined).apply()
         renderLog(joined)
     }
@@ -202,6 +202,12 @@ class MainActivity : AppCompatActivity() {
             contentResolver,
             Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
         ) ?: ""
-        return enabled.contains(packageName)
+        return enabled.split(':').any { component ->
+            try {
+                ComponentName.unflattenFromString(component)?.packageName == packageName
+            } catch (_: Exception) {
+                false
+            }
+        }
     }
 }
