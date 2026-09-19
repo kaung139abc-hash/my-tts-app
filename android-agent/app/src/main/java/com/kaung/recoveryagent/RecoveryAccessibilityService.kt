@@ -71,9 +71,8 @@ class RecoveryAccessibilityService : AccessibilityService() {
 
         val decision = RecoveryDecisionEngine.analyze(stateText)
         logDecision(decision)
-        maybeRequestCloudHint(stateText)
         updateSecurityMonitor(stateText)
-        val next = classify(stateText)
+        val next = if (isHumanVerificationVisible(root)) State.NEEDS_USER_VERIFICATION else classify(stateText)
         if (next != state) {
             state = next
             announceState(next)
@@ -133,7 +132,6 @@ class RecoveryAccessibilityService : AccessibilityService() {
     private fun classify(text: String): State {
         if (success.containsMatchIn(text)) return State.RECOVERED
         if (notFound.containsMatchIn(text)) return State.ACCOUNT_NOT_FOUND
-        if (humanVerification.containsMatchIn(text)) return State.NEEDS_USER_VERIFICATION
         if (text.contains("try another way", true) ||
             text.contains("use another way", true) ||
             text.contains("choose another option", true)
@@ -174,8 +172,30 @@ class RecoveryAccessibilityService : AccessibilityService() {
             "RECOVERY_PAGE" -> "✓ Recovery screen analyzed"
             else -> "• No safe action recognized"
         }
-        val lines = (old.split("\\n").filter { it.isNotBlank() } + message).takeLast(40)
-        prefs.edit().putString("agent_log", lines.joinToString("\\n")).apply()
+        val lines = (old.split("\n").filter { it.isNotBlank() } + message).takeLast(40)
+        prefs.edit().putString("agent_log", lines.joinToString("\n")).apply()
+    }
+
+    private fun maybeRequestCloudHint(screenText: String) {
+        val now = System.currentTimeMillis()
+        if (now - lastCloudHintAt < 5000L || !isTrustedRecoveryContext(screenText)) return
+        val prefs = getSharedPreferences("recovery", MODE_PRIVATE)
+        val key = prefs.getString("openai_api_key", "").orEmpty().trim()
+        if (key.isBlank()) return
+        lastCloudHintAt = now
+
+        CloudAiClient.analyze(screenText, key) { result ->
+            cloudSafeAction = parseCloudSafeAction(result)
+            prefs.edit()
+                .putString("cloud_ai_last_result", result)
+                .putString("cloud_safe_action", cloudSafeAction)
+                .apply()
+            val old = prefs.getString("agent_log", "").orEmpty()
+            val line = "AI → " + result.replace("\\s+".toRegex(), " ").trim().take(280)
+            val lines = (old.split("\n").filter { it.isNotBlank() } + line).takeLast(40)
+            prefs.edit().putString("agent_log", lines.joinToString("\n")).apply()
+            mainHandler.post { continueSafely() }
+        }
     }
 
     private fun continueSafely() {
