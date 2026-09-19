@@ -56,7 +56,7 @@ class RecoveryAccessibilityService : AccessibilityService() {
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         val root = rootInActiveWindow ?: return
         val stateText = summarize(root)
-        val fingerprint = stateText.replace("\\s+".toRegex(), " ").trim().take(1800)
+        val fingerprint = stateText.replace("\\s+".toRegex(), " ").trim().take(1800)\n        getSharedPreferences("recovery", MODE_PRIVATE).edit().putString("last_screen_text", stateText.take(3500)).apply()
 
         if (fingerprint == lastFingerprint && event?.eventType != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
             return
