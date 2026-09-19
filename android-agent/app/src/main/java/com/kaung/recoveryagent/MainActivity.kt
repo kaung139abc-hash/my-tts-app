@@ -14,6 +14,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var status: TextView
     private lateinit var identifier: EditText
     private lateinit var liveLog: TextView
+    private lateinit var apiKey: EditText
 
     private val screenshotPicker =
         registerForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
@@ -27,10 +28,33 @@ class MainActivity : AppCompatActivity() {
         status = findViewById(R.id.status)
         identifier = findViewById(R.id.identifier)
         liveLog = findViewById(R.id.liveLog)
+        apiKey = findViewById(R.id.apiKey)
+        apiKey.setText(getSharedPreferences("recovery", MODE_PRIVATE).getString("openai_api_key", ""))
 
         val prefs = getSharedPreferences("recovery", MODE_PRIVATE)
         identifier.setText(prefs.getString("identifier", ""))
         renderLog(prefs.getString("agent_log", ""))
+
+        findViewById<Button>(R.id.cloudAi).setOnClickListener {
+            val key = apiKey.text.toString().trim()
+            val prefs = getSharedPreferences("recovery", MODE_PRIVATE)
+            if (key.isBlank()) {
+                status.text = "Cloud AI: enter your OpenAI API key first"
+                return@setOnClickListener
+            }
+            prefs.edit().putString("openai_api_key", key).apply()
+            val screen = prefs.getString("last_screen_text", "").orEmpty()
+            if (screen.isBlank()) {
+                status.text = "Cloud AI: no recovery screen has been analyzed yet"
+                return@setOnClickListener
+            }
+            status.text = "Cloud AI: analyzing current recovery screen…"
+            appendLog("→ Cloud AI analysis started")
+            CloudAiClient.analyze(key, screen) { result ->
+                status.text = "Cloud AI: analysis complete"
+                appendLog("✓ Cloud AI: $result")
+            }
+        }
 
         findViewById<Button>(R.id.save).setOnClickListener {
             val value = identifier.text.toString().trim()
@@ -68,13 +92,18 @@ class MainActivity : AppCompatActivity() {
     private fun appendLog(message: String) {
         val prefs = getSharedPreferences("recovery", MODE_PRIVATE)
         val old = prefs.getString("agent_log", "") ?: ""
-        val lines = (old.split("\n").filter { it.isNotBlank() } + message).takeLast(40)
-        prefs.edit().putString("agent_log", lines.joinToString("\n")).apply()
-        renderLog(lines.joinToString("\n"))
+        val lines = (old.split("
+").filter { it.isNotBlank() } + message).takeLast(40)
+        prefs.edit().putString("agent_log", lines.joinToString("
+")).apply()
+        renderLog(lines.joinToString("
+"))
     }
 
     private fun renderLog(value: String) {
-        liveLog.text = if (value.isBlank()) "LIVE AGENT LOG\nWaiting to start…" else "LIVE AGENT LOG\n$value"
+        liveLog.text = if (value.isBlank()) "LIVE AGENT LOG
+Waiting to start…" else "LIVE AGENT LOG
+$value"
     }
 
     private fun shareScreenshotToAi(uri: Uri) {
