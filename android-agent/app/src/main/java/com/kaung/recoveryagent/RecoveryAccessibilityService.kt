@@ -23,9 +23,8 @@ class RecoveryAccessibilityService : AccessibilityService() {
         RegexOption.IGNORE_CASE
     )
 
-    // Navigation-only actions. Never click controls that request or change credentials.
+    // Only low-risk navigation controls are automated.
     private val safeNavigation = listOf(
-        "try again",
         "try another way",
         "use another way",
         "choose another option",
@@ -35,7 +34,8 @@ class RecoveryAccessibilityService : AccessibilityService() {
 
     private val blockedActions = Regex(
         "password|passcode|verification|verify|otp|one[- ]time|backup|passkey|security code|" +
-            "send code|resend|change password|reset password|recover by|phone number|email code",
+            "send code|resend|change password|reset password|recover by|phone number|email code|" +
+            "confirm identity|prove it|security question",
         RegexOption.IGNORE_CASE
     )
 
@@ -46,33 +46,50 @@ class RecoveryAccessibilityService : AccessibilityService() {
         if (state.isNotBlank() && state != lastState) {
             lastState = state
             if (isRecoveryPage(state)) {
-                Toast.makeText(
-                    this,
-                    "Recovery AI: recovery page detected",
-                    Toast.LENGTH_SHORT
-                ).show()
+                toast("Recovery AI: recovery screen detected")
+            }
+            if (looksLikeHumanVerification(state)) {
+                toast("Recovery AI: manual verification required")
+                return
             }
         }
 
+        if (looksLikeHumanVerification(state)) return
+
         val filled = autoFillSafeIdentifier(root, state)
         if (filled) {
-            // Give the page a moment to update before looking for the next safe button.
-            mainHandler.postDelayed({
-                clickSafeNavigation(rootInActiveWindow)
-            }, 350L)
+            mainHandler.postDelayed({ actOnCurrentPage() }, 450L)
         } else {
-            clickSafeNavigation(root)
+            actOnCurrentPage()
         }
     }
 
     override fun onInterrupt() {}
+
+    private fun actOnCurrentPage() {
+        val root = rootInActiveWindow ?: return
+        val state = summarize(root)
+        if (looksLikeHumanVerification(state)) return
+
+        // The agent can only perform safe navigation; ownership checks remain manual.
+        clickSafeNavigation(root)
+    }
 
     private fun isRecoveryPage(state: String): Boolean {
         return state.contains("recovery", true) ||
             state.contains("account", true) ||
             state.contains("sign in", true) ||
             state.contains("couldn't sign you in", true) ||
-            state.contains("try again", true)
+            state.contains("try again", true) ||
+            state.contains("mobile legends", true)
+    }
+
+    private fun looksLikeHumanVerification(state: String): Boolean {
+        return Regex(
+            "captcha|recaptcha|i'm not a robot|robot check|security check|enter the code|verification code|" +
+                "passkey|backup code|password",
+            RegexOption.IGNORE_CASE
+        ).containsMatchIn(state)
     }
 
     private fun autoFillSafeIdentifier(
@@ -106,11 +123,7 @@ class RecoveryAccessibilityService : AccessibilityService() {
             }
 
             if (node.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args)) {
-                Toast.makeText(
-                    this,
-                    "Recovery AI: safe identifier filled",
-                    Toast.LENGTH_SHORT
-                ).show()
+                toast("Recovery AI: safe identifier filled")
                 return true
             }
         }
@@ -120,14 +133,11 @@ class RecoveryAccessibilityService : AccessibilityService() {
     private fun clickSafeNavigation(root: AccessibilityNodeInfo?) {
         if (root == null) return
 
-        // Prevent repeated clicks caused by rapid accessibility events.
         val now = System.currentTimeMillis()
-        if (now - lastActionAt < 1200L) return
+        if (now - lastActionAt < 1500L) return
 
         val nodes = ArrayList<AccessibilityNodeInfo>()
         collectClickable(root, nodes, 0)
-
-        // Prefer recovery-specific choices before generic Continue/Next.
         val ordered = nodes.sortedBy { navigationPriority(nodeText(it)) }
 
         for (node in ordered) {
@@ -142,28 +152,20 @@ class RecoveryAccessibilityService : AccessibilityService() {
 
             if (node.isClickable && node.performAction(AccessibilityNodeInfo.ACTION_CLICK)) {
                 lastActionAt = now
-                Toast.makeText(
-                    this,
-                    "Recovery AI: continuing with \"$match\"",
-                    Toast.LENGTH_SHORT
-                ).show()
+                toast("Recovery AI: continuing with \"$match\"")
                 return
             }
 
-            // Some web controls expose a clickable parent instead of the text node.
             var parent = node.parent
             var depth = 0
             while (parent != null && depth < 3) {
                 if (parent.isClickable &&
                     !sensitive.containsMatchIn(nodeText(parent)) &&
+                    !blockedActions.containsMatchIn(nodeText(parent)) &&
                     parent.performAction(AccessibilityNodeInfo.ACTION_CLICK)
                 ) {
                     lastActionAt = now
-                    Toast.makeText(
-                        this,
-                        "Recovery AI: continuing with \"$match\"",
-                        Toast.LENGTH_SHORT
-                    ).show()
+                    toast("Recovery AI: continuing with \"$match\"")
                     return
                 }
                 parent = parent.parent
@@ -177,9 +179,8 @@ class RecoveryAccessibilityService : AccessibilityService() {
         return when {
             s == "try another way" || s == "use another way" -> 0
             s == "choose another option" -> 1
-            s == "try again" -> 2
-            s == "continue" -> 3
-            s == "next" -> 4
+            s == "continue" -> 2
+            s == "next" -> 3
             else -> 99
         }
     }
@@ -199,21 +200,13 @@ class RecoveryAccessibilityService : AccessibilityService() {
         return out.toString().take(4000)
     }
 
-    private fun walk(
-        node: AccessibilityNodeInfo?,
-        out: StringBuilder,
-        depth: Int
-    ) {
+    private fun walk(node: AccessibilityNodeInfo?, out: StringBuilder, depth: Int) {
         if (node == null || depth > 12 || out.length > 4000) return
-
         val t = nodeText(node)
         if (t.isNotBlank() && !sensitive.containsMatchIn(t)) {
-            out.append(t).append('\\n')
+            out.append(t).append('\n')
         }
-
-        for (i in 0 until node.childCount) {
-            walk(node.getChild(i), out, depth + 1)
-        }
+        for (i in 0 until node.childCount) walk(node.getChild(i), out, depth + 1)
     }
 
     private fun collectEditable(
@@ -223,9 +216,7 @@ class RecoveryAccessibilityService : AccessibilityService() {
     ) {
         if (node == null || depth > 12) return
         if (node.isEditable) out.add(node)
-        for (i in 0 until node.childCount) {
-            collectEditable(node.getChild(i), out, depth + 1)
-        }
+        for (i in 0 until node.childCount) collectEditable(node.getChild(i), out, depth + 1)
     }
 
     private fun collectClickable(
@@ -235,8 +226,10 @@ class RecoveryAccessibilityService : AccessibilityService() {
     ) {
         if (node == null || depth > 12) return
         if (node.isClickable) out.add(node)
-        for (i in 0 until node.childCount) {
-            collectClickable(node.getChild(i), out, depth + 1)
-        }
+        for (i in 0 until node.childCount) collectClickable(node.getChild(i), out, depth + 1)
+    }
+
+    private fun toast(message: String) {
+        Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
     }
 }
