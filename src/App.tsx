@@ -1,4 +1,5 @@
 import {useMemo,useState} from "react";
+import AgentConsole from "./AgentConsole";
 import {ShieldCheck,Search,ExternalLink,LockKeyhole,Gamepad2,Mail,Smartphone,ChevronRight,RotateCcw,AlertTriangle} from "lucide-react";
 
 type Service="Google"|"MLBB";
@@ -53,7 +54,7 @@ function App(){
   </main> :
   <main className="workspace">
    <section className="casebar"><button className="back" onClick={reset}>← New case</button><div><span className="muted">{active.service}</span><b>{active.identifier}</b></div><span className="status">CASE ACTIVE</span></section>
-   <section className="card analysis">
+   <AgentConsole service={active.service} problem={active.problem}/><section className="card analysis">
     <div className="analysisTop"><div><div className="eyebrow">RECOVERY PLAN</div><h2>{active.problem}</h2><p>Agent route selected for this case. Complete each official step in order.</p></div><div className="bigicon">{active.service==="Google"?<Mail/>:<Gamepad2/>}</div></div>
     <div className="steps">{steps.map((s,i)=><div className={i===step?"step current":i<step?"step done":"step"} key={s}><div className="dot">{i<step?"✓":i+1}</div><div><b>{s}</b><span>{i===0?"Case information":i===1?"Official service page":i===2?"Ownership verification":i===3?"Security hardening":"Evidence & support"}</span></div></div>)}</div>
     <div className="actionBox"><div><h3>{steps[step]}</h3><p>{step===0?"Review the case details before opening the official recovery flow.":step===1?"The agent can take you to the official recovery page. Do not use links sent by strangers.":step===2?"Enter passwords, OTPs, passkeys or other verification only on the official service page. The agent never receives them.":"After recovery, remove unknown devices/sessions and restore recovery methods and 2-Step Verification."}</p></div><a className="primary link" href={url} target="_blank" rel="noopener noreferrer">{step===3?"Open security settings":"Open official page"} <ExternalLink size={16}/></a></div>
