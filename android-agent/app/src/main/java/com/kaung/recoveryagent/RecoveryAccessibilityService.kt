@@ -70,6 +70,7 @@ class RecoveryAccessibilityService : AccessibilityService() {
         lastFingerprint = fingerprint
 
         val decision = RecoveryDecisionEngine.analyze(stateText)
+        persistDecision(decision)
         logDecision(decision)
         updateSecurityMonitor(stateText)
         maybeRequestCloudHint(stateText)
@@ -101,6 +102,16 @@ class RecoveryAccessibilityService : AccessibilityService() {
 
     override fun onInterrupt() {
         mainHandler.removeCallbacksAndMessages(null)
+    }
+
+    private fun persistDecision(decision: RecoveryDecision) {
+        val prefs = getSharedPreferences("recovery", MODE_PRIVATE)
+        prefs.edit()
+            .putString("decision_state", decision.state)
+            .putString("decision_explanation", decision.explanation)
+            .putString("decision_safe_action", decision.safeAction.orEmpty())
+            .putBoolean("decision_requires_user", decision.requiresUser)
+            .apply()
     }
 
     private fun securityRisk(text: String): String {
@@ -199,7 +210,7 @@ class RecoveryAccessibilityService : AccessibilityService() {
         }
     }
 
-    private fun continueSafely() {
+    private fun continueSafely(preferredAction: String? = null) {
         val root = rootInActiveWindow ?: return
         if (!isSupportedBrowser(root.packageName?.toString())) return
         val text = summarize(root)
@@ -211,7 +222,7 @@ class RecoveryAccessibilityService : AccessibilityService() {
             current == State.ACCOUNT_NOT_FOUND
         ) return
 
-        val cloudAction = cloudSafeAction
+        val cloudAction = preferredAction ?: cloudSafeAction
         if (cloudAction.isNotBlank() && cloudAction != "FILL_IDENTIFIER") {
             if (clickSafeNavigation(root, cloudAction)) return
         }
