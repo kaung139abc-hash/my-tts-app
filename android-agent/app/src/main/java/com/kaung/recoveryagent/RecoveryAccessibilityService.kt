@@ -68,6 +68,7 @@ class RecoveryAccessibilityService : AccessibilityService() {
         val decision = RecoveryDecisionEngine.analyze(stateText)
         logDecision(decision)
         maybeRequestCloudHint(stateText)
+        updateSecurityMonitor(stateText)
         val next = classify(stateText)
         if (next != state) {
             state = next
@@ -96,6 +97,33 @@ class RecoveryAccessibilityService : AccessibilityService() {
 
     override fun onInterrupt() {
         mainHandler.removeCallbacksAndMessages(null)
+    }
+
+    private fun securityRisk(text: String): String {
+        val t = normalize(text)
+        val signals = mutableListOf<String>()
+        if (Regex("suspicious|unrecognized|unknown device|new device|new sign-in|security alert|unusual activity|someone may have|hacked|compromised", RegexOption.IGNORE_CASE).containsMatchIn(t)) {
+            signals.add("POSSIBLE_ACCOUNT_TAKEOVER")
+        }
+        if (Regex("signed in on|your devices|recent security activity|sessions|devices", RegexOption.IGNORE_CASE).containsMatchIn(t)) {
+            signals.add("SECURITY_ACTIVITY_VISIBLE")
+        }
+        if (Regex("recovery email|recovery phone|2-step verification|two-step verification|2fa", RegexOption.IGNORE_CASE).containsMatchIn(t)) {
+            signals.add("RECOVERY_SECURITY_SETTINGS")
+        }
+        return if (signals.isEmpty()) "NO_HIGH_RISK_SIGNAL" else signals.joinToString(",")
+    }
+
+    private fun updateSecurityMonitor(text: String) {
+        val prefs = getSharedPreferences("recovery", MODE_PRIVATE)
+        val risk = securityRisk(text)
+        prefs.edit().putString("security_risk", risk).apply()
+        if (risk != "NO_HIGH_RISK_SIGNAL") {
+            val old = prefs.getString("agent_log", "").orEmpty()
+            val line = "SECURITY → $risk"
+            val lines = (old.split("\\n").filter { it.isNotBlank() } + line).takeLast(40)
+            prefs.edit().putString("agent_log", lines.joinToString("\\n")).apply()
+        }
     }
 
     private fun classify(text: String): State {
