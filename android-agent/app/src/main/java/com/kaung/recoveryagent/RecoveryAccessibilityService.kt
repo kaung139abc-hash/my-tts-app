@@ -19,6 +19,7 @@ class RecoveryAccessibilityService : AccessibilityService() {
     private var lastActionAt = 0L
     private var recoveredToastShown = false
     private var lastCloudHintAt = 0L
+    private var cloudSafeAction = ""
     private val mainHandler = Handler(Looper.getMainLooper())
 
     private val sensitive = Regex(
@@ -58,6 +59,9 @@ class RecoveryAccessibilityService : AccessibilityService() {
         val root = rootInActiveWindow ?: return
         if (!isSupportedBrowser(event?.packageName?.toString())) return
         val stateText = summarize(root)
+        getSharedPreferences("recovery", MODE_PRIVATE).edit()
+            .putString("last_screen_text", stateText.take(5000))
+            .apply()
         val fingerprint = normalize(stateText).take(1800)
 
         if (fingerprint == lastFingerprint && event?.eventType != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
@@ -121,8 +125,8 @@ class RecoveryAccessibilityService : AccessibilityService() {
         if (risk != "NO_HIGH_RISK_SIGNAL") {
             val old = prefs.getString("agent_log", "").orEmpty()
             val line = "SECURITY → $risk"
-            val lines = (old.split("\\n").filter { it.isNotBlank() } + line).takeLast(40)
-            prefs.edit().putString("agent_log", lines.joinToString("\\n")).apply()
+            val lines = (old.split("\n").filter { it.isNotBlank() } + line).takeLast(40)
+            prefs.edit().putString("agent_log", lines.joinToString("\n")).apply()
         }
     }
 
@@ -179,116 +183,79 @@ class RecoveryAccessibilityService : AccessibilityService() {
         if (!isSupportedBrowser(root.packageName?.toString())) return
         val text = summarize(root)
         if (!isTrustedRecoveryContext(text)) return
+
         val current = classify(text)
         if (current == State.NEEDS_USER_VERIFICATION ||
             current == State.RECOVERED ||
             current == State.ACCOUNT_NOT_FOUND
         ) return
 
-        clickSafeNavigation(root)
-    }
-
-    private fun isSupportedBrowser(packageName: String?): Boolean {
-        return packageName in setOf(
-            "com.android.chrome",
-            "org.mozilla.firefox",
-            "com.microsoft.emmx",
-            "com.opera.browser",
-            "com.sec.android.app.sbrowser"
-        )
-    }
-
-    private fun isTrustedRecoveryContext(text: String): Boolean {
-        val t = normalize(text)
-        val google = t.contains("accounts.google.com") ||
-            t.contains("google account") || t.contains("recover your account") ||
-            t.contains("find your email") || t.contains("sign in") && t.contains("google")
-        val mlbb = t.contains("mobile legends") || t.contains("moonton") ||
-            t.contains("customer service") && (t.contains("mlbb") || t.contains("mobile"))
-        return google || mlbb
-    }
-
-    private fun maybeRequestCloudHint(screenText: String) {
-        val now = System.currentTimeMillis()
-        if (now - lastCloudHintAt < 5000L || !isTrustedRecoveryContext(screenText)) return
-        val prefs = getSharedPreferences("recovery", MODE_PRIVATE)
-        val key = prefs.getString("openai_api_key", "")?.trim().orEmpty()
-        if (key.isBlank()) return
-        lastCloudHintAt = now
-        CloudAiClient.analyze(screenText, key) { result ->
-            prefs.edit().putString("cloud_ai_last_result", result).apply()
-            val old = prefs.getString("agent_log", "") ?: ""
-            val line = "AI → " + result.replace("\\s+".toRegex(), " ").trim().take(280)
-            val lines = (old.split("\n").filter { it.isNotBlank() } + line).takeLast(40)
-            prefs.edit().putString("agent_log", lines.joinToString("\n")).apply()
+        val cloudAction = cloudSafeAction
+        if (cloudAction.isNotBlank() && cloudAction != "FILL_IDENTIFIER") {
+            if (clickSafeNavigation(root, cloudAction)) return
         }
+        clickSafeNavigation(root, null)
     }
 
-    private fun autoFillSafeIdentifier(
-        root: AccessibilityNodeInfo,
-        stateText: String
-    ): Boolean {
-        if (!isTrustedRecoveryContext(stateText)) return false
-        if (sensitive.containsMatchIn(stateText) || humanVerification.containsMatchIn(stateText)) {
-            return false
-        }
+    private fun isSensitiveField(label: String): Boolean {
+        return Regex(
+            "password|passcode|verification code|otp|one[- ]time code|backup code|passkey|security code",
+            RegexOption.IGNORE_CASE
+        ).containsMatchIn(label)
+    }
 
-        val value = getSharedPreferences("recovery", MODE_PRIVATE)
-            .getString("identifier", "")?.trim() ?: return false
-        if (value.isBlank()) return false
-
+    private fun isHumanVerificationVisible(root: AccessibilityNodeInfo): Boolean {
         val nodes = ArrayList<AccessibilityNodeInfo>()
         collectEditable(root, nodes, 0)
-
         for (node in nodes) {
-            val label = listOf(
-                node.hintText?.toString(),
-                node.contentDescription?.toString(),
-                node.text?.toString()
-            ).filterNotNull().joinToString(" ")
-
-            if (!safeIdentifier.containsMatchIn(label)) continue
-            if (!node.isEditable || !node.text.isNullOrBlank()) continue
-
-            val args = Bundle().apply {
-                putCharSequence(
-                    AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE,
-                    value
-                )
-            }
-            if (node.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args)) {
-                state = State.IDENTIFIER_READY
-                toast("Recovery AI: safe identifier filled")
-                return true
-            }
+            val label = normalize(
+                listOf(
+                    node.hintText?.toString(),
+                    node.contentDescription?.toString(),
+                    node.text?.toString()
+                ).filterNotNull().joinToString(" ")
+            )
+            if (isSensitiveField(label)) return true
         }
-        return false
+        val visible = normalize(summarize(root))
+        return Regex("captcha|recaptcha|i'm not a robot|robot check", RegexOption.IGNORE_CASE)
+            .containsMatchIn(visible)
     }
 
-    private fun clickSafeNavigation(root: AccessibilityNodeInfo) {
+    private fun clickSafeNavigation(
+        root: AccessibilityNodeInfo,
+        preferredAction: String?
+    ): Boolean {
         val now = System.currentTimeMillis()
-        if (now - lastActionAt < 1500L) return
+        if (now - lastActionAt < 1200L) return false
+        if (isHumanVerificationVisible(root)) return false
 
-        val nodes = ArrayList<AccessibilityNodeInfo>()
-        collectClickable(root, nodes, 0)
+        val candidates = ArrayList<AccessibilityNodeInfo>()
+        collectClickable(root, candidates, 0)
 
-        for (node in nodes.sortedBy { navigationPriority(nodeText(it)) }) {
+        val ranked = candidates.mapNotNull { node ->
             val label = normalize(nodeText(node))
-            if (label.isBlank()) continue
-            if (sensitive.containsMatchIn(label) || blockedActions.containsMatchIn(label)) continue
+            if (label.isBlank()) return@mapNotNull null
+            if (sensitive.containsMatchIn(label) || blockedActions.containsMatchIn(label)) {
+                return@mapNotNull null
+            }
+            val action = classifyNavigation(label) ?: return@mapNotNull null
+            val preferred = preferredAction == action
+            val exact = safeNavigation.any { label == it }
+            Triple(navigationScore(label, action, preferred, exact), node, action)
+        }.sortedByDescending { it.first }
 
-            val match = safeNavigation.firstOrNull { label == it } ?: continue
-
+        for ((_, node, action) in ranked) {
             if (node.isClickable && node.performAction(AccessibilityNodeInfo.ACTION_CLICK)) {
                 lastActionAt = now
                 state = State.PROCESSING
-                toast("Recovery AI: continuing with \"$match\"")
-                return
+                toast("Recovery AI: auto-clicked \"$action\"")
+                return true
             }
 
             var parent = node.parent
             var depth = 0
-            while (parent != null && depth < 3) {
+            while (parent != null && depth < 4) {
                 val parentText = normalize(nodeText(parent))
                 if (parent.isClickable &&
                     !sensitive.containsMatchIn(parentText) &&
@@ -297,12 +264,58 @@ class RecoveryAccessibilityService : AccessibilityService() {
                 ) {
                     lastActionAt = now
                     state = State.PROCESSING
-                    toast("Recovery AI: continuing with \"$match\"")
-                    return
+                    toast("Recovery AI: auto-clicked \"$action\"")
+                    return true
                 }
                 parent = parent.parent
                 depth++
             }
+        }
+        return false
+    }
+
+    private fun classifyNavigation(label: String): String? {
+        val t = normalize(label)
+        if (t.contains("try another way") ||
+            t.contains("use another way") ||
+            t.contains("choose another option")
+        ) return "TRY_ANOTHER_WAY"
+
+        if (t == "next" || t.contains("next")) return "NEXT"
+        if (t == "continue" || t.contains("continue") ||
+            t.contains("recover account") || t.contains("get started")
+        ) return "CONTINUE"
+
+        return null
+    }
+
+    private fun navigationScore(
+        label: String,
+        action: String,
+        preferred: Boolean,
+        exact: Boolean
+    ): Int {
+        var score = 0
+        if (preferred) score += 100
+        if (exact) score += 30
+        score += when (action) {
+            "TRY_ANOTHER_WAY" -> 20
+            "CONTINUE" -> 10
+            "NEXT" -> 8
+            else -> 0
+        }
+        if (label.length > 80) score -= 30
+        return score
+    }
+
+    private fun parseCloudSafeAction(result: String): String {
+        val upper = result.uppercase()
+        return when {
+            upper.contains("CLICK_TRY_ANOTHER_WAY") -> "TRY_ANOTHER_WAY"
+            upper.contains("CLICK_CONTINUE") -> "CONTINUE"
+            upper.contains("CLICK_NEXT") -> "NEXT"
+            upper.contains("FILL_IDENTIFIER") -> "FILL_IDENTIFIER"
+            else -> ""
         }
     }
 
