@@ -58,7 +58,7 @@ class RecoveryAccessibilityService : AccessibilityService() {
         val root = rootInActiveWindow ?: return
         if (!isSupportedBrowser(event?.packageName?.toString())) return
         val stateText = summarize(root)
-        val fingerprint = stateText.replace("\\s+".toRegex(), " ").trim().take(1800)\n        getSharedPreferences("recovery", MODE_PRIVATE).edit().putString("last_screen_text", stateText.take(3500)).apply()
+        val fingerprint = normalize(stateText).take(1800)
 
         if (fingerprint == lastFingerprint && event?.eventType != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
             return
@@ -192,7 +192,7 @@ class RecoveryAccessibilityService : AccessibilityService() {
         CloudAiClient.analyze(screenText, key) { result ->
             prefs.edit().putString("cloud_ai_last_result", result).apply()
             val old = prefs.getString("agent_log", "") ?: ""
-            val line = "AI → ${result.replace("\\s+".toRegex(), " ").trim().take(280)}"
+            val line = "AI → " + result.replace("\\s+".toRegex(), " ").trim().take(280)
             val lines = (old.split("\n").filter { it.isNotBlank() } + line).takeLast(40)
             prefs.edit().putString("agent_log", lines.joinToString("\n")).apply()
         }
