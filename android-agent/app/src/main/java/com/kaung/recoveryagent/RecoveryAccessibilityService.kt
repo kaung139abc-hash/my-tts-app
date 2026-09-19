@@ -9,94 +9,139 @@ import android.view.accessibility.AccessibilityNodeInfo
 import android.widget.Toast
 
 class RecoveryAccessibilityService : AccessibilityService() {
-    private var lastState = ""
+    private enum class State {
+        IDLE, RECOVERY_PAGE, IDENTIFIER_READY, NEEDS_USER_VERIFICATION,
+        TRY_ANOTHER_METHOD, PROCESSING, RECOVERED, ACCOUNT_NOT_FOUND, BLOCKED
+    }
+
+    private var state = State.IDLE
+    private var lastFingerprint = ""
     private var lastActionAt = 0L
+    private var recoveredToastShown = false
     private val mainHandler = Handler(Looper.getMainLooper())
 
     private val sensitive = Regex(
         "password|passcode|verification code|otp|one[- ]time code|backup code|passkey|security code",
         RegexOption.IGNORE_CASE
     )
-
+    private val humanVerification = Regex(
+        "captcha|recaptcha|i'm not a robot|robot check|security check|verification code|" +
+            "enter the code|passkey|backup code|password",
+        RegexOption.IGNORE_CASE
+    )
     private val safeIdentifier = Regex(
         "email|e-mail|phone|mobile|username|user name|account|player id|playerid",
         RegexOption.IGNORE_CASE
     )
-
-    // Only low-risk navigation controls are automated.
     private val safeNavigation = listOf(
-        "try another way",
-        "use another way",
-        "choose another option",
-        "continue",
-        "next"
+        "try another way", "use another way", "choose another option",
+        "continue", "next", "recover account", "get started"
     )
-
     private val blockedActions = Regex(
-        "password|passcode|verification|verify|otp|one[- ]time|backup|passkey|security code|" +
-            "send code|resend|change password|reset password|recover by|phone number|email code|" +
-            "confirm identity|prove it|security question",
+        "password|passcode|verification|verify|otp|one[- ]time|backup|passkey|" +
+            "security code|send code|resend|change password|reset password|recover by|" +
+            "phone number|email code|confirm identity|prove it|security question",
+        RegexOption.IGNORE_CASE
+    )
+    private val success = Regex(
+        "account recovered|recovery successful|you're signed in|you are signed in|" +
+            "welcome back|account restored|signed in successfully",
+        RegexOption.IGNORE_CASE
+    )
+    private val notFound = Regex(
+        "couldn't find your account|account not found|no account found|user not found",
         RegexOption.IGNORE_CASE
     )
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         val root = rootInActiveWindow ?: return
-        val state = summarize(root)
+        val stateText = summarize(root)
+        val fingerprint = stateText.replace("\\s+".toRegex(), " ").trim().take(1800)
 
-        if (state.isNotBlank() && state != lastState) {
-            lastState = state
-            if (isRecoveryPage(state)) {
-                toast("Recovery AI: recovery screen detected")
-            }
-            if (looksLikeHumanVerification(state)) {
-                toast("Recovery AI: manual verification required")
+        if (fingerprint == lastFingerprint && event?.eventType != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
+            return
+        }
+        lastFingerprint = fingerprint
+
+        val next = classify(stateText)
+        if (next != state) {
+            state = next
+            announceState(next)
+        }
+
+        when (state) {
+            State.NEEDS_USER_VERIFICATION, State.BLOCKED, State.ACCOUNT_NOT_FOUND -> return
+            State.RECOVERED -> {
+                if (!recoveredToastShown) {
+                    recoveredToastShown = true
+                    toast("Recovery AI: account recovery appears successful")
+                }
                 return
             }
+            else -> {}
         }
 
-        if (looksLikeHumanVerification(state)) return
-
-        val filled = autoFillSafeIdentifier(root, state)
+        val filled = autoFillSafeIdentifier(root, stateText)
         if (filled) {
-            mainHandler.postDelayed({ actOnCurrentPage() }, 450L)
+            mainHandler.postDelayed({ continueSafely() }, 500L)
         } else {
-            actOnCurrentPage()
+            continueSafely()
         }
     }
 
-    override fun onInterrupt() {}
+    override fun onInterrupt() {
+        mainHandler.removeCallbacksAndMessages(null)
+    }
 
-    private fun actOnCurrentPage() {
+    private fun classify(text: String): State {
+        if (success.containsMatchIn(text)) return State.RECOVERED
+        if (notFound.containsMatchIn(text)) return State.ACCOUNT_NOT_FOUND
+        if (humanVerification.containsMatchIn(text)) return State.NEEDS_USER_VERIFICATION
+        if (text.contains("try another way", true) ||
+            text.contains("use another way", true) ||
+            text.contains("choose another option", true)
+        ) return State.TRY_ANOTHER_METHOD
+        if (text.contains("recovery", true) ||
+            text.contains("recover", true) ||
+            text.contains("sign in", true) ||
+            text.contains("mobile legends", true)
+        ) return State.RECOVERY_PAGE
+        return State.IDLE
+    }
+
+    private fun announceState(next: State) {
+        val message = when (next) {
+            State.RECOVERY_PAGE -> "Recovery AI: recovery page detected"
+            State.IDENTIFIER_READY -> "Recovery AI: identifier ready"
+            State.TRY_ANOTHER_METHOD -> "Recovery AI: another legitimate recovery method detected"
+            State.NEEDS_USER_VERIFICATION -> "Recovery AI: manual verification required"
+            State.RECOVERED -> "Recovery AI: recovery success detected"
+            State.ACCOUNT_NOT_FOUND -> "Recovery AI: account not found"
+            State.BLOCKED -> "Recovery AI: action blocked for safety"
+            else -> return
+        }
+        toast(message)
+    }
+
+    private fun continueSafely() {
         val root = rootInActiveWindow ?: return
-        val state = summarize(root)
-        if (looksLikeHumanVerification(state)) return
+        val text = summarize(root)
+        val current = classify(text)
+        if (current == State.NEEDS_USER_VERIFICATION ||
+            current == State.RECOVERED ||
+            current == State.ACCOUNT_NOT_FOUND
+        ) return
 
-        // The agent can only perform safe navigation; ownership checks remain manual.
         clickSafeNavigation(root)
-    }
-
-    private fun isRecoveryPage(state: String): Boolean {
-        return state.contains("recovery", true) ||
-            state.contains("account", true) ||
-            state.contains("sign in", true) ||
-            state.contains("couldn't sign you in", true) ||
-            state.contains("try again", true) ||
-            state.contains("mobile legends", true)
-    }
-
-    private fun looksLikeHumanVerification(state: String): Boolean {
-        return Regex(
-            "captcha|recaptcha|i'm not a robot|robot check|security check|enter the code|verification code|" +
-                "passkey|backup code|password",
-            RegexOption.IGNORE_CASE
-        ).containsMatchIn(state)
     }
 
     private fun autoFillSafeIdentifier(
         root: AccessibilityNodeInfo,
-        state: String
+        stateText: String
     ): Boolean {
-        if (sensitive.containsMatchIn(state)) return false
+        if (sensitive.containsMatchIn(stateText) || humanVerification.containsMatchIn(stateText)) {
+            return false
+        }
 
         val value = getSharedPreferences("recovery", MODE_PRIVATE)
             .getString("identifier", "")?.trim() ?: return false
@@ -121,8 +166,8 @@ class RecoveryAccessibilityService : AccessibilityService() {
                     value
                 )
             }
-
             if (node.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args)) {
+                state = State.IDENTIFIER_READY
                 toast("Recovery AI: safe identifier filled")
                 return true
             }
@@ -130,28 +175,23 @@ class RecoveryAccessibilityService : AccessibilityService() {
         return false
     }
 
-    private fun clickSafeNavigation(root: AccessibilityNodeInfo?) {
-        if (root == null) return
-
+    private fun clickSafeNavigation(root: AccessibilityNodeInfo) {
         val now = System.currentTimeMillis()
         if (now - lastActionAt < 1500L) return
 
         val nodes = ArrayList<AccessibilityNodeInfo>()
         collectClickable(root, nodes, 0)
-        val ordered = nodes.sortedBy { navigationPriority(nodeText(it)) }
 
-        for (node in ordered) {
-            val label = nodeText(node).trim()
+        for (node in nodes.sortedBy { navigationPriority(nodeText(it)) }) {
+            val label = normalize(nodeText(node))
             if (label.isBlank()) continue
             if (sensitive.containsMatchIn(label) || blockedActions.containsMatchIn(label)) continue
 
-            val normalized = label.replace("\\s+".toRegex(), " ").trim()
-            val match = safeNavigation.firstOrNull {
-                normalized.equals(it, ignoreCase = true)
-            } ?: continue
+            val match = safeNavigation.firstOrNull { label == it } ?: continue
 
             if (node.isClickable && node.performAction(AccessibilityNodeInfo.ACTION_CLICK)) {
                 lastActionAt = now
+                state = State.PROCESSING
                 toast("Recovery AI: continuing with \"$match\"")
                 return
             }
@@ -159,12 +199,14 @@ class RecoveryAccessibilityService : AccessibilityService() {
             var parent = node.parent
             var depth = 0
             while (parent != null && depth < 3) {
+                val parentText = normalize(nodeText(parent))
                 if (parent.isClickable &&
-                    !sensitive.containsMatchIn(nodeText(parent)) &&
-                    !blockedActions.containsMatchIn(nodeText(parent)) &&
+                    !sensitive.containsMatchIn(parentText) &&
+                    !blockedActions.containsMatchIn(parentText) &&
                     parent.performAction(AccessibilityNodeInfo.ACTION_CLICK)
                 ) {
                     lastActionAt = now
+                    state = State.PROCESSING
                     toast("Recovery AI: continuing with \"$match\"")
                     return
                 }
@@ -175,15 +217,18 @@ class RecoveryAccessibilityService : AccessibilityService() {
     }
 
     private fun navigationPriority(label: String): Int {
-        val s = label.trim().lowercase()
-        return when {
-            s == "try another way" || s == "use another way" -> 0
-            s == "choose another option" -> 1
-            s == "continue" -> 2
-            s == "next" -> 3
+        return when (normalize(label)) {
+            "try another way", "use another way" -> 0
+            "choose another option" -> 1
+            "continue" -> 2
+            "next" -> 3
+            "recover account", "get started" -> 4
             else -> 99
         }
     }
+
+    private fun normalize(value: String): String =
+        value.replace("\\s+".toRegex(), " ").trim().lowercase()
 
     private fun nodeText(node: AccessibilityNodeInfo?): String {
         if (node == null) return ""
@@ -197,14 +242,14 @@ class RecoveryAccessibilityService : AccessibilityService() {
     private fun summarize(root: AccessibilityNodeInfo): String {
         val out = StringBuilder()
         walk(root, out, 0)
-        return out.toString().take(4000)
+        return out.toString().take(5000)
     }
 
     private fun walk(node: AccessibilityNodeInfo?, out: StringBuilder, depth: Int) {
-        if (node == null || depth > 12 || out.length > 4000) return
-        val t = nodeText(node)
-        if (t.isNotBlank() && !sensitive.containsMatchIn(t)) {
-            out.append(t).append('\n')
+        if (node == null || depth > 14 || out.length > 5000) return
+        val text = nodeText(node)
+        if (text.isNotBlank() && !sensitive.containsMatchIn(text)) {
+            out.append(text).append('\n')
         }
         for (i in 0 until node.childCount) walk(node.getChild(i), out, depth + 1)
     }
@@ -214,7 +259,7 @@ class RecoveryAccessibilityService : AccessibilityService() {
         out: ArrayList<AccessibilityNodeInfo>,
         depth: Int
     ) {
-        if (node == null || depth > 12) return
+        if (node == null || depth > 14) return
         if (node.isEditable) out.add(node)
         for (i in 0 until node.childCount) collectEditable(node.getChild(i), out, depth + 1)
     }
@@ -224,7 +269,7 @@ class RecoveryAccessibilityService : AccessibilityService() {
         out: ArrayList<AccessibilityNodeInfo>,
         depth: Int
     ) {
-        if (node == null || depth > 12) return
+        if (node == null || depth > 14) return
         if (node.isClickable) out.add(node)
         for (i in 0 until node.childCount) collectClickable(node.getChild(i), out, depth + 1)
     }
