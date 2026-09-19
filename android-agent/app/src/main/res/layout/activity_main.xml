@@ -1,89 +1,45 @@
 <?xml version="1.0" encoding="utf-8"?>
 <ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent" android:layout_height="match_parent">
-    <LinearLayout
-        android:orientation="vertical"
-        android:padding="24dp"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content">
+    <LinearLayout android:orientation="vertical" android:padding="24dp"
+        android:layout_width="match_parent" android:layout_height="wrap_content">
 
-        <TextView
-            android:text="Recovery AI"
-            android:textSize="28sp"
-            android:textStyle="bold"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"/>
+        <TextView android:text="Recovery AI" android:textSize="30sp" android:textStyle="bold"
+            android:layout_width="wrap_content" android:layout_height="wrap_content"/>
+        <TextView android:text="Live account-recovery agent" android:textSize="15sp"
+            android:layout_marginTop="6dp" android:layout_width="wrap_content" android:layout_height="wrap_content"/>
 
-        <TextView
-            android:text="Official account recovery assistant"
-            android:textSize="15sp"
-            android:layout_marginTop="6dp"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"/>
+        <TextView android:id="@+id/status" android:text="Agent status: checking…"
+            android:textSize="16sp" android:textStyle="bold" android:layout_marginTop="20dp"
+            android:layout_width="match_parent" android:layout_height="wrap_content"/>
 
-        <TextView
-            android:id="@+id/status"
-            android:text="Agent status: checking…"
-            android:textSize="15sp"
-            android:layout_marginTop="20dp"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"/>
+        <TextView android:id="@+id/liveLog" android:text="Live agent log\nWaiting to start…"
+            android:textSize="14sp" android:layout_marginTop="12dp"
+            android:padding="14dp" android:background="#EEEEEE"
+            android:layout_width="match_parent" android:layout_height="180dp"/>
 
-        <EditText
-            android:id="@+id/identifier"
-            android:hint="Gmail / phone / username / Player ID"
-            android:inputType="text"
-            android:layout_marginTop="16dp"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"/>
+        <EditText android:id="@+id/identifier"
+            android:hint="Enter Gmail / phone / Player ID"
+            android:inputType="textEmailAddress" android:layout_marginTop="16dp"
+            android:layout_width="match_parent" android:layout_height="wrap_content"/>
 
-        <Button
-            android:id="@+id/save"
-            android:text="Save identifier on this phone"
-            android:layout_marginTop="8dp"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"/>
+        <Button android:id="@+id/save" android:text="Save identifier locally"
+            android:layout_marginTop="8dp" android:layout_width="match_parent" android:layout_height="wrap_content"/>
 
-        <Button
-            android:id="@+id/accessibility"
-            android:text="Enable Accessibility Service"
-            android:layout_marginTop="18dp"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"/>
+        <Button android:id="@+id/accessibility" android:text="Enable Agent Accessibility"
+            android:layout_marginTop="14dp" android:layout_width="match_parent" android:layout_height="wrap_content"/>
 
-        <Button
-            android:id="@+id/google"
-            android:text="Open Google Recovery"
-            android:layout_marginTop="10dp"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"/>
+        <Button android:id="@+id/google" android:text="Start Gmail Recovery Agent"
+            android:layout_marginTop="10dp" android:layout_width="match_parent" android:layout_height="wrap_content"/>
 
-        <Button
-            android:id="@+id/mlbb"
-            android:text="Open MLBB Official Site"
-            android:layout_marginTop="10dp"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"/>
+        <Button android:id="@+id/mlbb" android:text="Start MLBB Recovery Agent"
+            android:layout_marginTop="10dp" android:layout_width="match_parent" android:layout_height="wrap_content"/>
 
-        <Button
-            android:id="@+id/screenshotAi"
-            android:text="Send Screenshot to AI"
-            android:layout_marginTop="18dp"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"/>
+        <Button android:id="@+id/screenshotAi" android:text="Analyze Screenshot with AI"
+            android:layout_marginTop="16dp" android:layout_width="match_parent" android:layout_height="wrap_content"/>
 
-        <TextView
-            android:text="Screenshot AI: choose an existing screenshot, then select an AI app from the Android share sheet. Review the image first and do not share passwords, OTPs, passkeys or backup codes."
-            android:textSize="13sp"
-            android:layout_marginTop="10dp"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"/>
-
-        <TextView
-            android:text="Safety: only non-sensitive identifiers can be auto-filled. Passwords, OTPs, passkeys and backup codes are never collected or auto-filled."
-            android:textSize="13sp"
-            android:layout_marginTop="22dp"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"/>
+        <TextView android:text="Live mode: the agent can read visible recovery UI and perform only low-risk navigation. Passwords, OTPs, passkeys, backup codes and CAPTCHA remain under your control."
+            android:textSize="13sp" android:layout_marginTop="18dp"
+            android:layout_width="match_parent" android:layout_height="wrap_content"/>
     </LinearLayout>
 </ScrollView>
