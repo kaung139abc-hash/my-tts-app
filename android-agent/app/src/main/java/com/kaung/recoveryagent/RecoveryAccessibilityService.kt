@@ -57,7 +57,11 @@ class RecoveryAccessibilityService : AccessibilityService() {
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         val root = rootInActiveWindow ?: return
-        if (!isSupportedBrowser(event?.packageName?.toString())) return
+        // Do not rely on the event package name: Chrome can emit events from a
+        // WebView/sub-package while the active root still belongs to the browser.
+        // Safety is enforced later by isTrustedRecoveryContext().
+        val rootPackage = root.packageName?.toString()
+        if (!isSupportedBrowser(rootPackage) && rootPackage != null) return
         val stateText = summarize(root)
         getSharedPreferences("recovery", MODE_PRIVATE).edit()
             .putString("last_screen_text", stateText.take(5000))
@@ -392,7 +396,7 @@ class RecoveryAccessibilityService : AccessibilityService() {
         if (!isTrustedRecoveryContext(screenText) || isHumanVerificationVisible(root)) return false
         val value = getSharedPreferences("recovery", MODE_PRIVATE)
             .getString("identifier", "").orEmpty().trim()
-        if (value.isBlank() || !safeIdentifier.containsMatchIn(screenText)) return false
+        if (value.isBlank()) return false
 
         val nodes = ArrayList<AccessibilityNodeInfo>()
         collectEditable(root, nodes, 0)
@@ -405,8 +409,16 @@ class RecoveryAccessibilityService : AccessibilityService() {
                     node.text?.toString()
                 ).filterNotNull().joinToString(" ")
             )
-            if (label.isBlank() || isSensitiveField(label) || !safeIdentifier.containsMatchIn(label)) continue
+            if (isSensitiveField(label)) continue
             if (!node.text.isNullOrBlank()) continue
+
+            // Google sometimes exposes the identifier input with little/no hint text.
+            // Prefer explicit identifier labels/view IDs, otherwise allow a single
+            // empty editable field on a trusted recovery page.
+            val viewId = node.viewIdResourceName.orEmpty().lowercase()
+            val explicitIdentifier = safeIdentifier.containsMatchIn(label) ||
+                Regex("email|phone|identifier|username|account", RegexOption.IGNORE_CASE).containsMatchIn(viewId)
+            if (!explicitIdentifier && nodes.size != 1) continue
 
             val args = Bundle()
             args.putCharSequence(
