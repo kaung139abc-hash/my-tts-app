@@ -98,14 +98,29 @@ class RecoveryAccessibilityService : AccessibilityService() {
 
         val filled = autoFillSafeIdentifier(root, stateText)
         if (filled) {
-            mainHandler.postDelayed({ continueSafely(decision.safeAction) }, 500L)
+            mainHandler.postDelayed({ continueSafely(decision.safeAction) }, 700L)
         } else {
             continueSafely(decision.safeAction)
         }
+
+        // Chrome pages can expose the Google form only after WebView/layout settles.
+        // Retry the same safe inspection a few times without touching sensitive fields.
+        mainHandler.postDelayed({ retrySafeInspection() }, 1200L)
+        mainHandler.postDelayed({ retrySafeInspection() }, 2800L)
     }
 
     override fun onInterrupt() {
         mainHandler.removeCallbacksAndMessages(null)
+    }
+
+    private fun retrySafeInspection() {
+        val root = rootInActiveWindow ?: return
+        val text = summarize(root)
+        if (!isSupportedBrowser(root.packageName?.toString())) return
+        if (!isTrustedRecoveryContext(text)) return
+        if (isHumanVerificationVisible(root)) return
+        val filled = autoFillSafeIdentifier(root, text)
+        if (!filled) continueSafely()
     }
 
     private fun persistDecision(decision: RecoveryDecision) {
