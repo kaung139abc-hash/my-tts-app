@@ -7,11 +7,21 @@ import android.provider.Settings
 import android.widget.Button
 import android.widget.EditText
 import android.widget.TextView
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 
 class MainActivity : AppCompatActivity() {
     private lateinit var status: TextView
     private lateinit var identifier: EditText
+
+    private val screenshotPicker =
+        registerForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
+            if (uri != null) {
+                shareScreenshotToAi(uri)
+            } else {
+                status.text = "Screenshot AI: no image selected"
+            }
+        }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -31,12 +41,39 @@ class MainActivity : AppCompatActivity() {
         }
         findViewById<Button>(R.id.google).setOnClickListener {
             prefs.edit().putString("identifier", identifier.text.toString().trim()).apply()
-            startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://accounts.google.com/signin/recovery")))
+            startActivity(
+                Intent(
+                    Intent.ACTION_VIEW,
+                    Uri.parse("https://accounts.google.com/signin/recovery")
+                )
+            )
         }
         findViewById<Button>(R.id.mlbb).setOnClickListener {
             prefs.edit().putString("identifier", identifier.text.toString().trim()).apply()
-            startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://www.mobilelegends.com/")))
+            startActivity(
+                Intent(
+                    Intent.ACTION_VIEW,
+                    Uri.parse("https://www.mobilelegends.com/")
+                )
+            )
         }
+        findViewById<Button>(R.id.screenshotAi).setOnClickListener {
+            screenshotPicker.launch("image/*")
+        }
+    }
+
+    private fun shareScreenshotToAi(uri: Uri) {
+        val share = Intent(Intent.ACTION_SEND).apply {
+            type = "image/*"
+            putExtra(Intent.EXTRA_STREAM, uri)
+            putExtra(
+                Intent.EXTRA_TEXT,
+                "Recovery AI: Please explain this account-recovery screen and tell me the next legitimate step. Do not request or expose passwords, OTPs, passkeys, or backup codes."
+            )
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+        startActivity(Intent.createChooser(share, "Send screenshot to AI"))
+        status.text = "Screenshot AI: choose the AI app to receive this screenshot"
     }
 
     override fun onResume() {
