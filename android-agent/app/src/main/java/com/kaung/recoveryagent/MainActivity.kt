@@ -3,8 +3,6 @@ package com.kaung.recoveryagent
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
-import android.os.Handler
-import android.os.Looper
 import android.provider.Settings
 import android.widget.Button
 import android.widget.EditText
@@ -16,15 +14,11 @@ class MainActivity : AppCompatActivity() {
     private lateinit var status: TextView
     private lateinit var identifier: EditText
     private lateinit var liveLog: TextView
-    private val logHandler = Handler(Looper.getMainLooper())
 
     private val screenshotPicker =
         registerForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
-            if (uri != null) {
-                shareScreenshotToAi(uri)
-            } else {
-                status.text = "Screenshot AI: no image selected"
-            }
+            if (uri != null) shareScreenshotToAi(uri)
+            else status.text = "Screenshot AI: no image selected"
         }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -36,37 +30,51 @@ class MainActivity : AppCompatActivity() {
 
         val prefs = getSharedPreferences("recovery", MODE_PRIVATE)
         identifier.setText(prefs.getString("identifier", ""))
+        renderLog(prefs.getString("agent_log", ""))
 
         findViewById<Button>(R.id.save).setOnClickListener {
-            prefs.edit().putString("identifier", identifier.text.toString().trim()).apply()
+            val value = identifier.text.toString().trim()
+            prefs.edit().putString("identifier", value).apply()
             status.text = "Agent status: identifier saved locally"
             appendLog("✓ Identifier saved locally")
         }
+
         findViewById<Button>(R.id.accessibility).setOnClickListener {
             appendLog("→ Opening Accessibility settings")
             startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
         }
+
         findViewById<Button>(R.id.google).setOnClickListener {
-            prefs.edit().putString("identifier", identifier.text.toString().trim()).apply()
-            startActivity(
-                Intent(
-                    Intent.ACTION_VIEW,
-                    Uri.parse("https://accounts.google.com/signin/recovery")
-                )
-            )
+            val value = identifier.text.toString().trim()
+            prefs.edit().putString("identifier", value).putString("agent_state", "STARTING").apply()
+            appendLog("→ Starting official Google recovery")
+            startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://accounts.google.com/signin/recovery")))
+            appendLog("✓ Google recovery opened — live agent is watching the screen")
         }
+
         findViewById<Button>(R.id.mlbb).setOnClickListener {
-            prefs.edit().putString("identifier", identifier.text.toString().trim()).apply()
-            startActivity(
-                Intent(
-                    Intent.ACTION_VIEW,
-                    Uri.parse("https://www.mobilelegends.com/")
-                )
-            )
+            val value = identifier.text.toString().trim()
+            prefs.edit().putString("identifier", value).putString("agent_state", "STARTING").apply()
+            appendLog("→ Starting official MLBB route")
+            startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://www.mobilelegends.com/")))
+            appendLog("✓ MLBB page opened — live agent is watching the screen")
         }
+
         findViewById<Button>(R.id.screenshotAi).setOnClickListener {
             screenshotPicker.launch("image/*")
         }
+    }
+
+    private fun appendLog(message: String) {
+        val prefs = getSharedPreferences("recovery", MODE_PRIVATE)
+        val old = prefs.getString("agent_log", "") ?: ""
+        val lines = (old.split("\n").filter { it.isNotBlank() } + message).takeLast(40)
+        prefs.edit().putString("agent_log", lines.joinToString("\n")).apply()
+        renderLog(lines.joinToString("\n"))
+    }
+
+    private fun renderLog(value: String) {
+        liveLog.text = if (value.isBlank()) "LIVE AGENT LOG\nWaiting to start…" else "LIVE AGENT LOG\n$value"
     }
 
     private fun shareScreenshotToAi(uri: Uri) {
@@ -75,17 +83,18 @@ class MainActivity : AppCompatActivity() {
             putExtra(Intent.EXTRA_STREAM, uri)
             putExtra(
                 Intent.EXTRA_TEXT,
-                "Recovery AI: Please explain this account-recovery screen and tell me the next legitimate step. Do not request or expose passwords, OTPs, passkeys, or backup codes."
+                "Recovery AI: explain this account-recovery screen and identify the next legitimate step. Never request or expose passwords, OTPs, passkeys or backup codes."
             )
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         }
         startActivity(Intent.createChooser(share, "Send screenshot to AI"))
-        status.text = "Screenshot AI: choose the AI app to receive this screenshot"
+        status.text = "Screenshot AI: choose an AI app"
     }
 
-    private fun appendLog(message: String) {\n        liveLog.append("\\n" + message)\n    }\n\n    override fun onResume() {
+    override fun onResume() {
         super.onResume()
         val prefs = getSharedPreferences("recovery", MODE_PRIVATE)
+        renderLog(prefs.getString("agent_log", "") ?: "")
         val agentState = prefs.getString("agent_state", "")
         status.text = if (!isAccessibilityEnabled()) {
             "Agent status: Accessibility is not enabled"
