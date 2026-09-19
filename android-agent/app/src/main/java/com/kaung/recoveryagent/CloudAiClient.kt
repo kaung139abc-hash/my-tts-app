@@ -12,7 +12,7 @@ object CloudAiClient {
     private val client = OkHttpClient()
     private val jsonType = "application/json".toMediaType()
 
-    fun analyze(screenText: String, apiKey: String, callback: (String) -> Unit) {
+    fun analyze(apiKey: String, screenText: String, callback: (String) -> Unit) {
         Thread {
             val prompt = """
 You are a cautious account-recovery assistant. Analyze the visible UI text below.
