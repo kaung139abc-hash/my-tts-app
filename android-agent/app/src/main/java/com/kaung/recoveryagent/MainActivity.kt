@@ -78,10 +78,15 @@ class MainActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
-        status.text = if (isAccessibilityEnabled())
-            "Agent status: Accessibility is enabled"
-        else
+        val prefs = getSharedPreferences("recovery", MODE_PRIVATE)
+        val agentState = prefs.getString("agent_state", "")
+        status.text = if (!isAccessibilityEnabled()) {
             "Agent status: Accessibility is not enabled"
+        } else if (!agentState.isNullOrBlank()) {
+            "Agent status: $agentState"
+        } else {
+            "Agent status: ready — open an official recovery page"
+        }
     }
 
     private fun isAccessibilityEnabled(): Boolean {
