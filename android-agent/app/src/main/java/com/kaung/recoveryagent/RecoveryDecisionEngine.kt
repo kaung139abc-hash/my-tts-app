@@ -15,8 +15,23 @@ object RecoveryDecisionEngine {
 
     fun analyze(text: String): RecoveryDecision {
         val t = text.replace("\\s+".toRegex(), " ").trim()
-        if (secret.containsMatchIn(t)) {
-            return RecoveryDecision("MANUAL_VERIFICATION", "A sensitive ownership check is visible. Complete it directly on the official service.", requiresUser = true)
+        if (Regex("verification code|otp|one[- ]time code|backup code|passkey|security code|captcha|recaptcha|i'm not a robot", RegexOption.IGNORE_CASE).containsMatchIn(t)) {
+            return RecoveryDecision("MANUAL_VERIFICATION", "An ownership or human-verification step is visible. Complete it directly on the official service.", requiresUser = true)
+        }
+        if (Regex("password.*forgot|forgot.*password|forgot your password|forgotten password", RegexOption.IGNORE_CASE).containsMatchIn(t)) {
+            return RecoveryDecision("PASSWORD_FORGOTTEN", "The account password is unavailable; continue with the official account-recovery flow.")
+        }
+        if (Regex("lost.*phone|phone.*lost|lost.*device|device.*lost|can't access.*phone|cannot access.*phone|don't have.*phone|do not have.*phone", RegexOption.IGNORE_CASE).containsMatchIn(t)) {
+            return RecoveryDecision("DEVICE_UNAVAILABLE", "The previous device appears unavailable; look for an official alternative recovery method.")
+        }
+        if (Regex("lost.*sim|sim.*lost|can't access.*number|cannot access.*number|don't have.*number|do not have.*number", RegexOption.IGNORE_CASE).containsMatchIn(t)) {
+            return RecoveryDecision("PHONE_NUMBER_UNAVAILABLE", "The previous phone number appears unavailable; use another official recovery method if offered.")
+        }
+        if (Regex("code.*sent.*(email|gmail)|sent.*code.*(email|gmail)|verification.*email.*can't|verification.*email.*cannot|code.*inaccessible", RegexOption.IGNORE_CASE).containsMatchIn(t)) {
+            return RecoveryDecision("VERIFICATION_LOOP", "The verification destination may be inaccessible. Check for another official recovery option rather than bypassing verification.")
+        }
+        if (Regex("old phone|previous phone|old device|previous device|same device|familiar device|use.*device.*used before|device.*used before", RegexOption.IGNORE_CASE).containsMatchIn(t)) {
+            return RecoveryDecision("PREVIOUS_DEVICE_REQUIRED", "Google appears to be asking for a previously used device or familiar context. Do not spoof it; check the official alternatives.")
         }
         if (Regex("couldn't find your account|account not found|no account found|user not found", RegexOption.IGNORE_CASE).containsMatchIn(t)) {
             return RecoveryDecision("NOT_FOUND", "The official page reports that the account could not be found.")
