@@ -3,7 +3,11 @@ package com.kaung.recoveryagent
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.provider.Settings
+import android.text.Editable
+import android.text.TextWatcher
 import android.widget.Button
 import android.widget.EditText
 import android.widget.TextView
@@ -15,6 +19,8 @@ class MainActivity : AppCompatActivity() {
     private lateinit var identifier: EditText
     private lateinit var liveLog: TextView
     private lateinit var apiKey: EditText
+    private val autoStartHandler = Handler(Looper.getMainLooper())
+    private var autoStarted = false
 
     private val screenshotPicker =
         registerForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
@@ -29,15 +35,38 @@ class MainActivity : AppCompatActivity() {
         identifier = findViewById(R.id.identifier)
         liveLog = findViewById(R.id.liveLog)
         apiKey = findViewById(R.id.apiKey)
-        apiKey.setText(getSharedPreferences("recovery", MODE_PRIVATE).getString("openai_api_key", ""))
 
         val prefs = getSharedPreferences("recovery", MODE_PRIVATE)
+        apiKey.setText(prefs.getString("openai_api_key", ""))
         identifier.setText(prefs.getString("identifier", ""))
         renderLog(prefs.getString("agent_log", ""))
 
+        identifier.addTextChangedListener(object : TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
+                autoStarted = false
+                autoStartHandler.removeCallbacksAndMessages(null)
+                val value = s?.toString()?.trim().orEmpty()
+                if (value.length < 5 || !isAccessibilityEnabled()) return
+
+                autoStartHandler.postDelayed({
+                    if (autoStarted) return@postDelayed
+                    val current = identifier.text.toString().trim()
+                    if (!looksLikeEmail(current)) return@postDelayed
+                    prefs.edit().putString("identifier", current)
+                        .putString("agent_state", "STARTING")
+                        .putString("auto_start", "GOOGLE")
+                        .apply()
+                    autoStarted = true
+                    appendLog("→ Gmail detected — starting official recovery automatically")
+                    openOfficialRecovery("GOOGLE")
+                }, 900L)
+            }
+            override fun afterTextChanged(s: Editable?) = Unit
+        })
+
         findViewById<Button>(R.id.cloudAi).setOnClickListener {
             val key = apiKey.text.toString().trim()
-            val prefs = getSharedPreferences("recovery", MODE_PRIVATE)
             if (key.isBlank()) {
                 status.text = "Cloud AI: enter your OpenAI API key first"
                 return@setOnClickListener
@@ -61,6 +90,13 @@ class MainActivity : AppCompatActivity() {
             prefs.edit().putString("identifier", value).apply()
             status.text = "Agent status: identifier saved locally"
             appendLog("✓ Identifier saved locally")
+            if (looksLikeEmail(value) && isAccessibilityEnabled()) {
+                autoStarted = true
+                prefs.edit().putString("agent_state", "STARTING")
+                    .putString("auto_start", "GOOGLE").apply()
+                appendLog("→ Gmail identifier saved — opening official recovery")
+                openOfficialRecovery("GOOGLE")
+            }
         }
 
         findViewById<Button>(R.id.accessibility).setOnClickListener {
@@ -70,18 +106,18 @@ class MainActivity : AppCompatActivity() {
 
         findViewById<Button>(R.id.google).setOnClickListener {
             val value = identifier.text.toString().trim()
-            prefs.edit().putString("identifier", value).putString("agent_state", "STARTING").apply()
+            prefs.edit().putString("identifier", value).putString("agent_state", "STARTING")
+                .putString("auto_start", "GOOGLE").apply()
             appendLog("→ Starting official Google recovery")
-            startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://accounts.google.com/signin/recovery")))
-            appendLog("✓ Google recovery opened — live agent is watching the screen")
+            openOfficialRecovery("GOOGLE")
         }
 
         findViewById<Button>(R.id.mlbb).setOnClickListener {
             val value = identifier.text.toString().trim()
-            prefs.edit().putString("identifier", value).putString("agent_state", "STARTING").apply()
+            prefs.edit().putString("identifier", value).putString("agent_state", "STARTING")
+                .putString("auto_start", "MLBB").apply()
             appendLog("→ Starting official MLBB route")
-            startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://www.mobilelegends.com/")))
-            appendLog("✓ MLBB page opened — live agent is watching the screen")
+            openOfficialRecovery("MLBB")
         }
 
         findViewById<Button>(R.id.screenshotAi).setOnClickListener {
@@ -89,21 +125,28 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private fun openOfficialRecovery(route: String) {
+        val url = if (route == "MLBB") "https://www.mobilelegends.com/"
+        else "https://accounts.google.com/signin/recovery"
+        startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+        appendLog("✓ Official page opened — live agent is watching the screen")
+        status.text = "Agent status: live recovery mode"
+    }
+
+    private fun looksLikeEmail(value: String): Boolean =
+        Regex("^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$").matches(value)
+
     private fun appendLog(message: String) {
         val prefs = getSharedPreferences("recovery", MODE_PRIVATE)
         val old = prefs.getString("agent_log", "") ?: ""
-        val lines = (old.split("
-").filter { it.isNotBlank() } + message).takeLast(40)
-        prefs.edit().putString("agent_log", lines.joinToString("
-")).apply()
-        renderLog(lines.joinToString("
-"))
+        val lines = (old.split("\\n").filter { it.isNotBlank() } + message).takeLast(40)
+        val joined = lines.joinToString("\\n")
+        prefs.edit().putString("agent_log", joined).apply()
+        renderLog(joined)
     }
 
     private fun renderLog(value: String) {
-        liveLog.text = if (value.isBlank()) "LIVE AGENT LOG
-Waiting to start…" else "LIVE AGENT LOG
-$value"
+        liveLog.text = if (value.isBlank()) "LIVE AGENT LOG\nWaiting to start…" else "LIVE AGENT LOG\n$value"
     }
 
     private fun shareScreenshotToAi(uri: Uri) {
@@ -130,7 +173,7 @@ $value"
         } else if (!agentState.isNullOrBlank()) {
             "Agent status: $agentState"
         } else {
-            "Agent status: ready — open an official recovery page"
+            "Agent status: ready — type a Gmail to auto-start"
         }
     }
 
