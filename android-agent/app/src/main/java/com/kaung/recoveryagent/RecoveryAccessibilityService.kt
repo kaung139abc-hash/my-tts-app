@@ -152,6 +152,7 @@ class RecoveryAccessibilityService : AccessibilityService() {
         val root = rootInActiveWindow ?: return
         if (!isSupportedBrowser(root.packageName?.toString())) return
         val text = summarize(root)
+        if (!isTrustedRecoveryContext(text)) return
         val current = classify(text)
         if (current == State.NEEDS_USER_VERIFICATION ||
             current == State.RECOVERED ||
