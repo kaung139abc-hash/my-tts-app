@@ -126,30 +126,21 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun openAgentAccessibilitySettings() {
-        appendLog("→ Opening Recovery AI Accessibility settings")
-        status.text = "Opening Recovery AI Accessibility…"
-
-        val component = ComponentName(this, RecoveryAccessibilityService::class.java)
+        appendLog("→ Opening Accessibility settings")
+        status.text = "Opening Accessibility settings…"
 
         try {
-            val detailsIntent = Intent(Settings.ACTION_ACCESSIBILITY_DETAILS_SETTINGS).apply {
-                data = Uri.parse("package:$packageName")
-                putExtra(
-                    Settings.EXTRA_ACCESSIBILITY_COMPONENT_NAME,
-                    component.flattenToString()
-                )
-            }
-            startActivity(detailsIntent)
+            startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
         } catch (_: Exception) {
             try {
-                startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
-            } catch (_: Exception) {
                 startActivity(
                     Intent(
                         Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
                         Uri.parse("package:$packageName")
                     )
                 )
+            } catch (_: Exception) {
+                status.text = "Please open Settings → Accessibility manually"
             }
         }
     }
