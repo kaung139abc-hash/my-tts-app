@@ -94,9 +94,9 @@ class RecoveryAccessibilityService : AccessibilityService() {
 
         val filled = autoFillSafeIdentifier(root, stateText)
         if (filled) {
-            mainHandler.postDelayed({ continueSafely() }, 500L)
+            mainHandler.postDelayed({ continueSafely(decision.safeAction) }, 500L)
         } else {
-            continueSafely()
+            continueSafely(decision.safeAction)
         }
     }
 
