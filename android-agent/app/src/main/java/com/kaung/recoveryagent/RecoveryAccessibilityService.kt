@@ -72,6 +72,7 @@ class RecoveryAccessibilityService : AccessibilityService() {
         val decision = RecoveryDecisionEngine.analyze(stateText)
         logDecision(decision)
         updateSecurityMonitor(stateText)
+        maybeRequestCloudHint(stateText)
         val next = if (isHumanVerificationVisible(root)) State.NEEDS_USER_VERIFICATION else classify(stateText)
         if (next != state) {
             state = next
@@ -184,7 +185,7 @@ class RecoveryAccessibilityService : AccessibilityService() {
         if (key.isBlank()) return
         lastCloudHintAt = now
 
-        CloudAiClient.analyze(screenText, key) { result ->
+        CloudAiClient.analyze(key, screenText) { result ->
             cloudSafeAction = parseCloudSafeAction(result)
             prefs.edit()
                 .putString("cloud_ai_last_result", result)
@@ -348,6 +349,67 @@ class RecoveryAccessibilityService : AccessibilityService() {
             "recover account", "get started" -> 4
             else -> 99
         }
+    }
+
+    private fun isSupportedBrowser(packageName: String?): Boolean {
+        return packageName in setOf(
+            "com.android.chrome",
+            "org.mozilla.firefox",
+            "com.microsoft.emmx",
+            "com.opera.browser",
+            "com.sec.android.app.sbrowser"
+        )
+    }
+
+    private fun isTrustedRecoveryContext(text: String): Boolean {
+        val t = normalize(text)
+        val google = t.contains("accounts.google.com") ||
+            t.contains("google account") ||
+            t.contains("recover your account") ||
+            t.contains("find your email") ||
+            (t.contains("sign in") && t.contains("google"))
+        val mlbb = t.contains("mobile legends") ||
+            t.contains("moonton") ||
+            (t.contains("customer service") && (t.contains("mlbb") || t.contains("mobile")))
+        return google || mlbb
+    }
+
+    private fun autoFillSafeIdentifier(
+        root: AccessibilityNodeInfo,
+        screenText: String
+    ): Boolean {
+        if (!isTrustedRecoveryContext(screenText) || isHumanVerificationVisible(root)) return false
+        val value = getSharedPreferences("recovery", MODE_PRIVATE)
+            .getString("identifier", "").orEmpty().trim()
+        if (value.isBlank() || !safeIdentifier.containsMatchIn(screenText)) return false
+
+        val nodes = ArrayList<AccessibilityNodeInfo>()
+        collectEditable(root, nodes, 0)
+        for (node in nodes) {
+            if (!node.isEnabled || !node.isFocusable) continue
+            val label = normalize(
+                listOf(
+                    node.hintText?.toString(),
+                    node.contentDescription?.toString(),
+                    node.text?.toString()
+                ).filterNotNull().joinToString(" ")
+            )
+            if (label.isBlank() || isSensitiveField(label) || !safeIdentifier.containsMatchIn(label)) continue
+            if (!node.text.isNullOrBlank()) continue
+
+            val args = Bundle()
+            args.putCharSequence(
+                AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE,
+                value
+            )
+            if (node.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args)) {
+                lastActionAt = System.currentTimeMillis()
+                state = State.IDENTIFIER_READY
+                toast("Recovery AI: safe identifier filled")
+                return true
+            }
+        }
+        return false
     }
 
     private fun normalize(value: String): String =
