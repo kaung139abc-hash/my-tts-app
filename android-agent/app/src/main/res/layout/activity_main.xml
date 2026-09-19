@@ -18,7 +18,7 @@
             android:padding="14dp" android:background="#EEEEEE"
             android:layout_width="match_parent" android:layout_height="180dp"/>
 
-        <EditText android:id="@+id/identifier"
+        <EditText android:id="@+id/apiKey"\n            android:hint="OpenAI API key (optional for Cloud AI)"\n            android:inputType="textPassword" android:layout_marginTop="12dp"\n            android:layout_width="match_parent" android:layout_height="wrap_content"/>\n\n        <Button android:id="@+id/cloudAi" android:text="Analyze Current Screen with Cloud AI"\n            android:layout_marginTop="8dp" android:layout_width="match_parent" android:layout_height="wrap_content"/>\n\n        <EditText android:id="@+id/identifier"
             android:hint="Enter Gmail / phone / Player ID"
             android:inputType="textEmailAddress" android:layout_marginTop="16dp"
             android:layout_width="match_parent" android:layout_height="wrap_content"/>
