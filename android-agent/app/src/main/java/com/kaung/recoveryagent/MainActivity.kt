@@ -80,7 +80,7 @@ class MainActivity : AppCompatActivity() {
             }
             status.text = "Cloud AI: analyzing current recovery screen…"
             appendLog("→ Cloud AI analysis started")
-            CloudAiClient.analyze(screen, key) { result ->
+            CloudAiClient.analyze(key, screen) { result ->
                 status.text = "Cloud AI: analysis complete"
                 appendLog("✓ Cloud AI: $result")
             }
