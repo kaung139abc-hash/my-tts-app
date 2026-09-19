@@ -170,10 +170,8 @@ class RecoveryAccessibilityService : AccessibilityService() {
             "RECOVERY_PAGE" -> "✓ Recovery screen analyzed"
             else -> "• No safe action recognized"
         }
-        val lines = (old.split("\
-").filter { it.isNotBlank() } + message).takeLast(40)
-        prefs.edit().putString("agent_log", lines.joinToString("\
-")).apply()
+        val lines = (old.split("\\n").filter { it.isNotBlank() } + message).takeLast(40)
+        prefs.edit().putString("agent_log", lines.joinToString("\\n")).apply()
     }
 
     private fun continueSafely() {
