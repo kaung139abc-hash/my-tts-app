@@ -18,6 +18,7 @@ class RecoveryAccessibilityService : AccessibilityService() {
     private var lastFingerprint = ""
     private var lastActionAt = 0L
     private var recoveredToastShown = false
+    private var lastCloudHintAt = 0L
     private val mainHandler = Handler(Looper.getMainLooper())
 
     private val sensitive = Regex(
@@ -55,6 +56,7 @@ class RecoveryAccessibilityService : AccessibilityService() {
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         val root = rootInActiveWindow ?: return
+        if (!isSupportedBrowser(event?.packageName?.toString())) return
         val stateText = summarize(root)
         val fingerprint = stateText.replace("\\s+".toRegex(), " ").trim().take(1800)\n        getSharedPreferences("recovery", MODE_PRIVATE).edit().putString("last_screen_text", stateText.take(3500)).apply()
 
@@ -65,6 +67,7 @@ class RecoveryAccessibilityService : AccessibilityService() {
 
         val decision = RecoveryDecisionEngine.analyze(stateText)
         logDecision(decision)
+        maybeRequestCloudHint(stateText)
         val next = classify(stateText)
         if (next != state) {
             state = next
@@ -147,6 +150,7 @@ class RecoveryAccessibilityService : AccessibilityService() {
 
     private fun continueSafely() {
         val root = rootInActiveWindow ?: return
+        if (!isSupportedBrowser(root.packageName?.toString())) return
         val text = summarize(root)
         val current = classify(text)
         if (current == State.NEEDS_USER_VERIFICATION ||
@@ -157,10 +161,47 @@ class RecoveryAccessibilityService : AccessibilityService() {
         clickSafeNavigation(root)
     }
 
+    private fun isSupportedBrowser(packageName: String?): Boolean {
+        return packageName in setOf(
+            "com.android.chrome",
+            "org.mozilla.firefox",
+            "com.microsoft.emmx",
+            "com.opera.browser",
+            "com.sec.android.app.sbrowser"
+        )
+    }
+
+    private fun isTrustedRecoveryContext(text: String): Boolean {
+        val t = normalize(text)
+        val google = t.contains("accounts.google.com") ||
+            t.contains("google account") || t.contains("recover your account") ||
+            t.contains("find your email") || t.contains("sign in") && t.contains("google")
+        val mlbb = t.contains("mobile legends") || t.contains("moonton") ||
+            t.contains("customer service") && (t.contains("mlbb") || t.contains("mobile"))
+        return google || mlbb
+    }
+
+    private fun maybeRequestCloudHint(screenText: String) {
+        val now = System.currentTimeMillis()
+        if (now - lastCloudHintAt < 5000L || !isTrustedRecoveryContext(screenText)) return
+        val prefs = getSharedPreferences("recovery", MODE_PRIVATE)
+        val key = prefs.getString("openai_api_key", "")?.trim().orEmpty()
+        if (key.isBlank()) return
+        lastCloudHintAt = now
+        CloudAiClient.analyze(screenText, key) { result ->
+            prefs.edit().putString("cloud_ai_last_result", result).apply()
+            val old = prefs.getString("agent_log", "") ?: ""
+            val line = "AI → ${result.replace("\\s+".toRegex(), " ").trim().take(280)}"
+            val lines = (old.split("\n").filter { it.isNotBlank() } + line).takeLast(40)
+            prefs.edit().putString("agent_log", lines.joinToString("\n")).apply()
+        }
+    }
+
     private fun autoFillSafeIdentifier(
         root: AccessibilityNodeInfo,
         stateText: String
     ): Boolean {
+        if (!isTrustedRecoveryContext(stateText)) return false
         if (sensitive.containsMatchIn(stateText) || humanVerification.containsMatchIn(stateText)) {
             return false
         }
