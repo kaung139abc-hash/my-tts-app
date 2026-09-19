@@ -38,8 +38,8 @@ class MainActivity : AppCompatActivity() {
 
         val prefs = getSharedPreferences("recovery", MODE_PRIVATE)
         apiKey.setText(prefs.getString("openai_api_key", "").orEmpty())
-        identifier.setText(prefs.getString("identifier", ""))
-        renderLog(prefs.getString("agent_log", ""))
+        identifier.setText(prefs.getString("identifier", "").orEmpty())
+        renderLog(prefs.getString("agent_log", "").orEmpty())
 
         identifier.addTextChangedListener(object : TextWatcher {
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit
