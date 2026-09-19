@@ -13,8 +13,7 @@
             android:textSize="16sp" android:textStyle="bold" android:layout_marginTop="20dp"
             android:layout_width="match_parent" android:layout_height="wrap_content"/>
 
-        <TextView android:id="@+id/liveLog" android:text="Live agent log
-Waiting to start…"
+        <TextView android:id="@+id/liveLog" android:text="Live agent log&#10;Waiting to start…"
             android:textSize="14sp" android:layout_marginTop="12dp"
             android:padding="14dp" android:background="#EEEEEE"
             android:layout_width="match_parent" android:layout_height="180dp"/>
@@ -32,7 +31,11 @@ Waiting to start…"
             android:inputType="textEmailAddress" android:layout_marginTop="16dp"
             android:layout_width="match_parent" android:layout_height="wrap_content"/>
 
-        <Button android:id="@+id/save" android:text="Save identifier locally"
+        <TextView android:text="Gmail: when Accessibility is enabled, a valid Gmail address starts the official recovery page automatically. No password or verification code is entered by the agent."
+            android:textSize="13sp" android:layout_marginTop="6dp"
+            android:layout_width="match_parent" android:layout_height="wrap_content"/>
+
+        <Button android:id="@+id/save" android:text="Save identifier / Start"
             android:layout_marginTop="8dp" android:layout_width="match_parent" android:layout_height="wrap_content"/>
 
         <Button android:id="@+id/accessibility" android:text="Enable Agent Accessibility"
@@ -47,7 +50,7 @@ Waiting to start…"
         <Button android:id="@+id/screenshotAi" android:text="Analyze Screenshot with AI"
             android:layout_marginTop="16dp" android:layout_width="match_parent" android:layout_height="wrap_content"/>
 
-        <TextView android:text="Live mode: the agent can read visible recovery UI and perform only low-risk navigation. Passwords, OTPs, passkeys, backup codes and CAPTCHA remain under your control."
+        <TextView android:text="Live mode: the agent can read visible official recovery UI and perform only low-risk navigation. Passwords, OTPs, passkeys, backup codes and CAPTCHA remain under your control."
             android:textSize="13sp" android:layout_marginTop="18dp"
             android:layout_width="match_parent" android:layout_height="wrap_content"/>
     </LinearLayout>
