@@ -63,7 +63,9 @@ class RecoveryAccessibilityService : AccessibilityService() {
         }
         lastFingerprint = fingerprint
 
-        val decision = RecoveryDecisionEngine.analyze(stateText)\n        logDecision(decision)\n        val next = classify(stateText)
+        val decision = RecoveryDecisionEngine.analyze(stateText)
+        logDecision(decision)
+        val next = classify(stateText)
         if (next != state) {
             state = next
             announceState(next)
@@ -125,7 +127,25 @@ class RecoveryAccessibilityService : AccessibilityService() {
         toast(message)
     }
 
-    private fun logDecision(decision: RecoveryDecision) {\n        val prefs = getSharedPreferences("recovery", MODE_PRIVATE)\n        val old = prefs.getString("agent_log", "") ?: ""\n        val message = when (decision.state) {\n            "MANUAL_VERIFICATION" -> "⚠ User verification required"\n            "RECOVERED" -> "✓ Recovery success detected"\n            "NOT_FOUND" -> "• Official page says account was not found"\n            "ALTERNATIVE_METHOD" -> "→ Alternative recovery method detected"\n            "NAVIGATION" -> "→ Safe navigation available"\n            "RECOVERY_PAGE" -> "✓ Recovery screen analyzed"\n            else -> "• No safe action recognized"\n        }\n        val lines = (old.split("\\n").filter { it.isNotBlank() } + message).takeLast(40)\n        prefs.edit().putString("agent_log", lines.joinToString("\\n")).apply()\n    }\n\n    private fun continueSafely() {
+    private fun logDecision(decision: RecoveryDecision) {
+        val prefs = getSharedPreferences("recovery", MODE_PRIVATE)
+        val old = prefs.getString("agent_log", "") ?: ""
+        val message = when (decision.state) {
+            "MANUAL_VERIFICATION" -> "⚠ User verification required"
+            "RECOVERED" -> "✓ Recovery success detected"
+            "NOT_FOUND" -> "• Official page says account was not found"
+            "ALTERNATIVE_METHOD" -> "→ Alternative recovery method detected"
+            "NAVIGATION" -> "→ Safe navigation available"
+            "RECOVERY_PAGE" -> "✓ Recovery screen analyzed"
+            else -> "• No safe action recognized"
+        }
+        val lines = (old.split("\
+").filter { it.isNotBlank() } + message).takeLast(40)
+        prefs.edit().putString("agent_log", lines.joinToString("\
+")).apply()
+    }
+
+    private fun continueSafely() {
         val root = rootInActiveWindow ?: return
         val text = summarize(root)
         val current = classify(text)
