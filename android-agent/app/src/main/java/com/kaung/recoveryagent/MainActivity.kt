@@ -1,263 +1,171 @@
 package com.kaung.recoveryagent
 
-import android.content.ComponentName
-import android.content.Intent
+import android.content.ContentValues
+import android.media.AudioAttributes
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
-import android.os.Handler
-import android.os.Looper
-import android.provider.Settings
-import android.text.Editable
-import android.text.TextWatcher
-import android.widget.Button
-import android.widget.EditText
-import android.widget.TextView
-import androidx.activity.result.contract.ActivityResultContracts
+import android.os.Environment
+import android.provider.MediaStore
+import android.speech.tts.TextToSpeech
+import android.speech.tts.UtteranceProgressListener
+import android.os.Bundle
+import android.widget.*
 import androidx.appcompat.app.AppCompatActivity
+import java.io.File
+import java.io.FileInputStream
+import java.io.FileOutputStream
+import java.util.Locale
+import java.util.UUID
 
-class MainActivity : AppCompatActivity() {
+class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
+    private lateinit var tts: TextToSpeech
+    private lateinit var textInput: EditText
+    private lateinit var voiceSpinner: Spinner
+    private lateinit var rateSeek: SeekBar
+    private lateinit var pitchSeek: SeekBar
     private lateinit var status: TextView
-    private lateinit var identifier: EditText
-    private lateinit var liveLog: TextView
-    private lateinit var apiKey: EditText
-    private val autoStartHandler = Handler(Looper.getMainLooper())
-    private var autoStarted = false
-
-    private val screenshotPicker =
-        registerForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
-            if (uri != null) shareScreenshotToAi(uri)
-            else status.text = "Screenshot AI: no image selected"
-        }
+    private lateinit var speakButton: Button
+    private lateinit var saveButton: Button
+    private var ready = false
+    private var voices = listOf<TextToSpeech.Voice>()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
+        textInput = findViewById(R.id.textInput)
+        voiceSpinner = findViewById(R.id.voiceSpinner)
+        rateSeek = findViewById(R.id.rateSeek)
+        pitchSeek = findViewById(R.id.pitchSeek)
         status = findViewById(R.id.status)
-        identifier = findViewById(R.id.identifier)
-        liveLog = findViewById(R.id.liveLog)
-        apiKey = findViewById(R.id.apiKey)
-
-        val prefs = getSharedPreferences("recovery", MODE_PRIVATE)
-        apiKey.setText(prefs.getString("openai_api_key", "").orEmpty())
-        identifier.setText(prefs.getString("identifier", "").orEmpty())
-        renderLog(prefs.getString("agent_log", "").orEmpty())
-
-        identifier.addTextChangedListener(object : TextWatcher {
-            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit
-            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
-                autoStarted = false
-                autoStartHandler.removeCallbacksAndMessages(null)
-                val value = s?.toString()?.trim().orEmpty()
-                if (value.length < 5 || !isAccessibilityEnabled()) return
-
-                autoStartHandler.postDelayed({
-                    if (autoStarted) return@postDelayed
-                    val current = identifier.text.toString().trim()
-                    if (!looksLikeEmail(current)) return@postDelayed
-                    prefs.edit().putString("identifier", current)
-                        .putString("agent_state", "STARTING")
-                        .putString("auto_start", "GOOGLE")
-                        .apply()
-                    autoStarted = true
-                    appendLog("→ Gmail detected — starting official recovery automatically")
-                    openOfficialRecovery("GOOGLE")
-                }, 900L)
-            }
-            override fun afterTextChanged(s: Editable?) = Unit
-        })
-
-        findViewById<Button>(R.id.cloudAi).setOnClickListener {
-            val key = apiKey.text.toString().trim()
-            if (key.isBlank()) {
-                status.text = "Cloud AI: enter your OpenAI API key first"
-                return@setOnClickListener
-            }
-            prefs.edit().putString("openai_api_key", key).apply()
-            val screen = prefs.getString("last_screen_text", "").orEmpty()
-            if (screen.isBlank()) {
-                status.text = "Cloud AI: no recovery screen has been analyzed yet"
-                return@setOnClickListener
-            }
-            status.text = "Cloud AI: analyzing current recovery screen…"
-            appendLog("→ Cloud AI analysis started")
-            CloudAiClient.analyze(key, screen) { result ->
-                status.text = "Cloud AI: analysis complete"
-                appendLog("✓ Cloud AI: $result")
-            }
-        }
-
-        findViewById<Button>(R.id.save).setOnClickListener {
-            val value = identifier.text.toString().trim()
-            prefs.edit().putString("identifier", value).apply()
-            status.text = "Agent status: identifier saved locally"
-            appendLog("✓ Identifier saved locally")
-            if (looksLikeEmail(value) && isAccessibilityEnabled()) {
-                autoStarted = true
-                prefs.edit().putString("agent_state", "STARTING")
-                    .putString("auto_start", "GOOGLE").apply()
-                appendLog("→ Gmail identifier saved — opening official recovery")
-                openOfficialRecovery("GOOGLE")
-            }
-        }
-
-        findViewById<Button>(R.id.accessibility).setOnClickListener {
-            openAgentAccessibilitySettings()
-        }
-
-        findViewById<Button>(R.id.google).setOnClickListener {
-            val value = identifier.text.toString().trim()
-            prefs.edit().putString("identifier", value).putString("agent_state", "STARTING")
-                .putString("auto_start", "GOOGLE").apply()
-            appendLog("→ Starting official Google recovery")
-            openOfficialRecovery("GOOGLE")
-        }
-
-        findViewById<Button>(R.id.mlbb).setOnClickListener {
-            val value = identifier.text.toString().trim()
-            prefs.edit().putString("identifier", value).putString("agent_state", "STARTING")
-                .putString("auto_start", "MLBB").apply()
-            appendLog("→ Starting official MLBB route")
-            openOfficialRecovery("MLBB")
-        }
-
-        findViewById<Button>(R.id.screenshotAi).setOnClickListener {
-            screenshotPicker.launch("image/*")
-        }
-
-        findViewById<Button>(R.id.selfTest).setOnClickListener {
-            runRecoverySelfTest()
-        }
+        speakButton = findViewById(R.id.speakButton)
+        saveButton = findViewById(R.id.saveButton)
+        rateSeek.progress = 50
+        pitchSeek.progress = 50
+        tts = TextToSpeech(this, this)
+        speakButton.setOnClickListener { speak() }
+        saveButton.setOnClickListener { saveWav() }
     }
 
-    private fun runRecoverySelfTest() {
-        val prefs = getSharedPreferences("recovery", MODE_PRIVATE)
-        val checks = mutableListOf<String>()
-
-        val accessibilityOk = isAccessibilityEnabled()
-        checks += if (accessibilityOk) "PASS Accessibility enabled" else "FAIL Accessibility not enabled"
-
-        val browserOk = packageManager.getInstalledApplications(0).any {
-            it.packageName in setOf(
-                "com.android.chrome",
-                "org.mozilla.firefox",
-                "com.microsoft.emmx",
-                "com.opera.browser",
-                "com.sec.android.app.sbrowser"
-            )
+    override fun onInit(result: Int) {
+        if (result != TextToSpeech.SUCCESS) {
+            status.text = "TTS engine could not start. Enable an Android TTS engine in Settings."
+            return
         }
-        checks += if (browserOk) "PASS Supported browser installed" else "WARN No supported browser detected"
-
-        val gmail = identifier.text.toString().trim()
-        checks += if (looksLikeEmail(gmail)) "PASS Gmail format recognized" else "INFO Gmail not entered"
-
-        val blockedWords = listOf("password", "otp", "passkey", "backup code", "captcha")
-        checks += if (blockedWords.all { it.isNotBlank() }) "PASS Sensitive-step safety policy loaded" else "FAIL Safety policy check"
-
-        val engineChecks = listOf(
-            "PASSWORD_FORGOTTEN" to "I forgot my password",
-            "DEVICE_UNAVAILABLE" to "I no longer have my phone",
-            "PHONE_NUMBER_UNAVAILABLE" to "I don't have access to my phone number",
-            "VERIFICATION_LOOP" to "Try another way"
+        tts.setAudioAttributes(
+            AudioAttributes.Builder()
+                .setUsage(AudioAttributes.USAGE_MEDIA)
+                .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+                .build()
         )
-        var enginePass = true
-        for ((expected, sample) in engineChecks) {
-            val d = RecoveryDecisionEngine.analyze(sample)
-            if (d.state != expected) enginePass = false
+        ready = true
+        val locale = Locale.getDefault()
+        tts.language = locale
+        voices = tts.voices
+            .filter { !it.isNetworkConnectionRequired && it.locale.language == locale.language }
+            .sortedBy { it.name.lowercase(Locale.ROOT) }
+        if (voices.isEmpty()) {
+            voices = tts.voices.filter { !it.isNetworkConnectionRequired }
+                .sortedBy { it.name.lowercase(Locale.ROOT) }
         }
-        checks += if (enginePass) "PASS Recovery decision states" else "FAIL Recovery decision states"
-
-        val summary = checks.joinToString("\n")
-        prefs.edit()
-            .putString("agent_state", "SELF_TEST_COMPLETE")
-            .putString("self_test_result", summary)
-            .apply()
-        status.text = "Self-Test complete"
-        appendLog("SELF-TEST →\\n$summary")
+        val labels = voices.map { voice ->
+            val quality = when {
+                voice.quality >= TextToSpeech.VOICE_QUALITY_VERY_HIGH -> "high"
+                voice.quality >= TextToSpeech.VOICE_QUALITY_HIGH -> "good"
+                else -> "standard"
+            }
+            "${voice.locale.displayName} • ${voice.name} • $quality"
+        }
+        voiceSpinner.adapter = ArrayAdapter(
+            this, android.R.layout.simple_spinner_dropdown_item,
+            labels.ifEmpty { listOf("Android default voice") }
+        )
+        status.text = "Ready • Local TTS • API key not required"
     }
 
-    private fun openAgentAccessibilitySettings() {
-        appendLog("→ Opening Accessibility settings")
-        status.text = "Opening Accessibility settings…"
+    private fun applySettings() {
+        if (voices.isNotEmpty() && voiceSpinner.selectedItemPosition in voices.indices) {
+            tts.voice = voices[voiceSpinner.selectedItemPosition]
+        }
+        tts.setSpeechRate(0.5f + rateSeek.progress / 50f)
+        tts.setPitch(0.5f + pitchSeek.progress / 50f)
+    }
 
-        try {
-            startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+    private fun speak() {
+        if (!ready) { status.text = "TTS is still starting…"; return }
+        val text = textInput.text.toString().trim()
+        if (text.isEmpty()) { status.text = "Enter some text first."; return }
+        applySettings()
+        tts.speak(text, TextToSpeech.QUEUE_FLUSH, null, "preview-${UUID.randomUUID()}")
+        status.text = "Speaking locally…"
+    }
+
+    private fun saveWav() {
+        if (!ready) { status.text = "TTS is still starting…"; return }
+        val text = textInput.text.toString().trim()
+        if (text.isEmpty()) { status.text = "Enter some text first."; return }
+        applySettings()
+        val file = File(cacheDir, "tts-${System.currentTimeMillis()}.wav")
+        saveButton.isEnabled = false
+        status.text = "Creating WAV locally…"
+        tts.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
+            override fun onStart(utteranceId: String?) = Unit
+            override fun onError(utteranceId: String?) {
+                runOnUiThread {
+                    saveButton.isEnabled = true
+                    status.text = "Could not create the WAV file."
+                }
+            }
+            override fun onDone(utteranceId: String?) {
+                if (utteranceId != "export") return
+                val saved = copyToMusic(file)
+                runOnUiThread {
+                    saveButton.isEnabled = true
+                    status.text = if (saved != null) "Saved WAV: $saved" else "WAV could not be saved."
+                }
+            }
+        })
+        val params = Bundle().apply {
+            putString(TextToSpeech.Engine.KEY_PARAM_UTTERANCE_ID, "export")
+        }
+        tts.synthesizeToFile(text, params, file, "export-${UUID.randomUUID()}")
+    }
+
+    private fun copyToMusic(source: File): String? {
+        if (!source.exists()) return null
+        val name = "TTS-${System.currentTimeMillis()}.wav"
+        return try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                val values = ContentValues().apply {
+                    put(MediaStore.Audio.Media.DISPLAY_NAME, name)
+                    put(MediaStore.Audio.Media.MIME_TYPE, "audio/wav")
+                    put(MediaStore.Audio.Media.RELATIVE_PATH, Environment.DIRECTORY_MUSIC + "/TTS")
+                    put(MediaStore.Audio.Media.IS_PENDING, 1)
+                }
+                val uri = contentResolver.insert(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, values) ?: return null
+                contentResolver.openOutputStream(uri)?.use { output ->
+                    FileInputStream(source).use { input -> input.copyTo(output) }
+                }
+                values.clear()
+                values.put(MediaStore.Audio.Media.IS_PENDING, 0)
+                contentResolver.update(uri, values, null, null)
+                "Music/TTS/$name"
+            } else {
+                val dir = File(getExternalFilesDir(Environment.DIRECTORY_MUSIC), "TTS")
+                dir.mkdirs()
+                val target = File(dir, name)
+                FileInputStream(source).use { input -> FileOutputStream(target).use { output -> input.copyTo(output) } }
+                target.absolutePath
+            }
         } catch (_: Exception) {
-            try {
-                startActivity(
-                    Intent(
-                        Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
-                        Uri.parse("package:$packageName")
-                    )
-                )
-            } catch (_: Exception) {
-                status.text = "Please open Settings → Accessibility manually"
-            }
+            null
+        } finally {
+            source.delete()
         }
     }
 
-    private fun openOfficialRecovery(route: String) {
-        val url = if (route == "MLBB") "https://www.mobilelegends.com/"
-        else "https://accounts.google.com/signin/recovery"
-        startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
-        appendLog("✓ Official page opened — live agent is watching the screen")
-        status.text = "Agent status: live recovery mode"
-    }
-
-    private fun looksLikeEmail(value: String): Boolean =
-        Regex("^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$").matches(value)
-
-    private fun appendLog(message: String) {
-        val prefs = getSharedPreferences("recovery", MODE_PRIVATE)
-        val old = prefs.getString("agent_log", "") ?: ""
-        val lines = (old.split("\n").filter { it.isNotBlank() } + message).takeLast(40)
-        val joined = lines.joinToString("\n")
-        prefs.edit().putString("agent_log", joined).apply()
-        renderLog(joined)
-    }
-
-    private fun renderLog(value: String) {
-        liveLog.text = if (value.isBlank()) "LIVE AGENT LOG\\nWaiting to start…" else "LIVE AGENT LOG\\n$value"
-    }
-
-    private fun shareScreenshotToAi(uri: Uri) {
-        val share = Intent(Intent.ACTION_SEND).apply {
-            type = "image/*"
-            putExtra(Intent.EXTRA_STREAM, uri)
-            putExtra(
-                Intent.EXTRA_TEXT,
-                "Recovery AI: explain this account-recovery screen and identify the next legitimate step. Never request or expose passwords, OTPs, passkeys or backup codes."
-            )
-            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-        }
-        startActivity(Intent.createChooser(share, "Send screenshot to AI"))
-        status.text = "Screenshot AI: choose an AI app"
-    }
-
-    override fun onResume() {
-        super.onResume()
-        val prefs = getSharedPreferences("recovery", MODE_PRIVATE)
-        renderLog(prefs.getString("agent_log", "") ?: "")
-        val agentState = prefs.getString("agent_state", "")
-        status.text = if (!isAccessibilityEnabled()) {
-            "Agent status: Accessibility is not enabled"
-        } else if (!agentState.isNullOrBlank()) {
-            "Agent status: $agentState"
-        } else {
-            "Agent status: ready — type a Gmail to auto-start"
-        }
-    }
-
-    private fun isAccessibilityEnabled(): Boolean {
-        val enabled = Settings.Secure.getString(
-            contentResolver,
-            Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
-        ) ?: ""
-        return enabled.split(':').any { component ->
-            try {
-                ComponentName.unflattenFromString(component)?.packageName == packageName
-            } catch (_: Exception) {
-                false
-            }
-        }
+    override fun onDestroy() {
+        if (::tts.isInitialized) { tts.stop(); tts.shutdown() }
+        super.onDestroy()
     }
 }
