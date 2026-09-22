@@ -13,5 +13,6 @@
 <SeekBar android:id="@+id/pitchSeek" android:max="100" android:progress="50" android:layout_width="match_parent" android:layout_height="wrap_content"/>
 <Button android:id="@+id/speakButton" android:text="▶  Speak" android:textSize="16sp" android:layout_marginTop="18dp" android:layout_width="match_parent" android:layout_height="wrap_content"/>
 <Button android:id="@+id/saveButton" android:text="Save WAV to Music/TTS" android:textSize="16sp" android:layout_marginTop="8dp" android:layout_width="match_parent" android:layout_height="wrap_content"/>
-<TextView android:text="Everything above uses the Android TTS engine locally. No API key is needed. WAV export is supported; MP3 conversion can be added as a separate local encoder." android:textSize="13sp" android:layout_marginTop="18dp" android:layout_width="match_parent" android:layout_height="wrap_content"/>
+<Button android:id="@+id/saveMp3Button" android:text="Save MP3 to Music/TTS" android:textSize="16sp" android:layout_marginTop="8dp" android:layout_width="match_parent" android:layout_height="wrap_content"/>
+<TextView android:text="Local TTS + local LAME encoder. No API key and no cloud audio conversion." android:textSize="13sp" android:layout_marginTop="18dp" android:layout_width="match_parent" android:layout_height="wrap_content"/>
 </LinearLayout></ScrollView>
