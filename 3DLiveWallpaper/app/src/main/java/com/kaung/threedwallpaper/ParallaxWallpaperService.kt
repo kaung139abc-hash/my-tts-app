@@ -1,6 +1,8 @@
 package com.kaung.threedwallpaper
 
 import android.graphics.*
+import android.os.Handler
+import android.os.Looper
 import android.service.wallpaper.WallpaperService
 import android.view.SurfaceHolder
 import kotlin.math.cos
@@ -14,14 +16,15 @@ class ParallaxWallpaperService : WallpaperService() {
 
     inner class Engine : WallpaperService.Engine() {
         private var visible = false
-        private var xOffset = 0.5f
-        private var mode = getSharedPreferences("wallpaper", MODE_PRIVATE).getInt("mode", 0)
+        private var xOffset = .5f
+        private var yOffset = .5f
         private var time = 0f
-        private val handler = android.os.Handler(android.os.Looper.getMainLooper())
-        private val stars = Array(110) {
-            Star(Random.nextFloat(), Random.nextFloat(), 0.6f + Random.nextFloat() * 2.2f, 0.4f + Random.nextFloat() * 1.5f)
+        private var mode = 0
+        private val handler = Handler(Looper.getMainLooper())
+        private val stars = Array(150) {
+            Star(Random.nextFloat(), Random.nextFloat(), .5f + Random.nextFloat() * 2.4f, .4f + Random.nextFloat() * 1.8f)
         }
-        private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+        private val p = Paint(Paint.ANTI_ALIAS_FLAG)
         private val frame = object : Runnable {
             override fun run() {
                 drawFrame()
@@ -40,9 +43,9 @@ class ParallaxWallpaperService : WallpaperService() {
             if (visible) drawFrame()
         }
 
-        override fun onOffsetsChanged(x: Float, y: Float, xStep: Float, yStep: Float, xPixels: Int, yPixels: Int) {
+        override fun onOffsetsChanged(x: Float, y: Float, xs: Float, ys: Float, xp: Int, yp: Int) {
             xOffset = x
-            if (visible) drawFrame()
+            yOffset = y
         }
 
         override fun onSurfaceDestroyed(holder: SurfaceHolder) {
@@ -51,241 +54,214 @@ class ParallaxWallpaperService : WallpaperService() {
             super.onSurfaceDestroyed(holder)
         }
 
-        private fun fill(canvas: Canvas, color: Int) {
-            paint.shader = null
-            paint.style = Paint.Style.FILL
-            paint.color = color
-            paint.alpha = 255
-            canvas.drawRect(0f, 0f, canvas.width.toFloat(), canvas.height.toFloat(), paint)
-        }
-
-        private fun circle(canvas: Canvas, color: Int, cx: Float, cy: Float, r: Float, alpha: Int = 255) {
-            paint.shader = null
-            paint.style = Paint.Style.FILL
-            paint.color = color
-            paint.alpha = alpha
-            canvas.drawCircle(cx, cy, r, paint)
-        }
-
-        private fun path(canvas: Canvas, color: Int, points: FloatArray, alpha: Int = 255) {
-            val p = Path()
-            p.moveTo(points[0], points[1])
-            var i = 2
-            while (i < points.size) {
-                p.lineTo(points[i], points[i + 1])
-                i += 2
-            }
-            p.close()
-            paint.shader = null
-            paint.style = Paint.Style.FILL
-            paint.color = color
-            paint.alpha = alpha
-            canvas.drawPath(p, paint)
-        }
-
         private fun drawFrame() {
             if (!visible) return
-            val canvas = try { surfaceHolder.lockCanvas() } catch (_: Exception) { null } ?: return
+            val c = try { surfaceHolder.lockCanvas() } catch (_: Exception) { null } ?: return
             try {
-                val w = canvas.width.toFloat()
-                val h = canvas.height.toFloat()
-                time += 0.035f
+                time += .033f
                 mode = getSharedPreferences("wallpaper", MODE_PRIVATE).getInt("mode", 0)
+                val w = c.width.toFloat()
+                val h = c.height.toFloat()
                 when (mode) {
-                    0 -> drawPirateSea(canvas, w, h)
-                    1 -> drawSkyWarrior(canvas, w, h)
-                    2 -> drawTropicalIsland(canvas, w, h)
-                    3 -> drawNaturalForest(canvas, w, h)
-                    4 -> drawSunsetOcean(canvas, w, h)
-                    else -> drawCosmic(canvas, w, h)
+                    0 -> pirate(c, w, h)
+                    1 -> warrior(c, w, h)
+                    2 -> island(c, w, h)
+                    3 -> forest(c, w, h)
+                    4 -> sunset(c, w, h)
+                    else -> cosmic(c, w, h)
                 }
             } finally {
-                surfaceHolder.unlockCanvasAndPost(canvas)
+                surfaceHolder.unlockCanvasAndPost(c)
             }
         }
 
-        private fun drawPirateSea(c: Canvas, w: Float, h: Float) {
-            paint.shader = LinearGradient(0f, 0f, 0f, h, Color.rgb(25, 100, 160), Color.rgb(3, 18, 48), Shader.TileMode.CLAMP)
-            c.drawRect(0f, 0f, w, h, paint)
-            paint.shader = null
-
-            val sunX = w * .72f + sin(time * .15f) * w * .025f
-            val sunY = h * .22f
-            circle(c, Color.rgb(255, 236, 165), sunX, sunY, h * .10f, 230)
-
-            // drifting clouds
-            for (i in 0..3) {
-                val cx = ((w * (.08f + i * .29f) + time * (10f + i * 4f)) % (w * 1.3f)) - w * .15f
-                circle(c, Color.WHITE, cx, h * (.18f + (i % 2) * .09f), h * .035f, 170)
-                circle(c, Color.WHITE, cx + h * .035f, h * (.17f + (i % 2) * .09f), h * .045f, 180)
-                circle(c, Color.WHITE, cx + h * .075f, h * (.19f + (i % 2) * .09f), h * .028f, 160)
-            }
-
-            // distant islands
-            path(c, Color.rgb(15, 55, 67), floatArrayOf(0f,h*.58f,w*.16f,h*.50f,w*.28f,h*.57f,w*.42f,h*.48f,w*.58f,h*.58f,w*.75f,h*.49f,w,h*.57f,w,h,0f,h))
-            // animated sea
-            path(c, Color.rgb(5, 72, 105), floatArrayOf(0f,h*.60f,w*.22f,h*.57f,w*.45f,h*.61f,w*.68f,h*.56f,w,h*.61f,w,h,0f,h))
-            for (i in 0..10) {
-                val yy = h * (.64f + i * .035f)
-                val shift = sin(time * 1.4f + i) * w * .025f
-                paint.color = Color.argb(100, 160, 225, 240)
-                paint.strokeWidth = h * .006f
-                paint.style = Paint.Style.STROKE
-                val p = Path()
-                p.moveTo(-w*.1f + shift, yy)
-                for (x in 0..8) p.quadTo(w*(x/8f+.05f)+shift, yy + sin(time*2f+x+i)*h*.009f, w*(x/8f+.125f)+shift, yy)
-                c.drawPath(p, paint)
-            }
-            paint.style = Paint.Style.FILL
-
-            // original anime pirate silhouette on a small ship
-            val shipY = h * .57f + sin(time * .9f) * h * .012f
-            path(c, Color.rgb(55, 25, 18), floatArrayOf(w*.34f,shipY,w*.64f,shipY,w*.59f,shipY+h*.055f,w*.40f,shipY+h*.055f))
-            paint.color = Color.rgb(205, 150, 75); paint.strokeWidth = h*.006f
-            c.drawLine(w*.49f, shipY, w*.49f, shipY-h*.23f, paint)
-            path(c, Color.rgb(238, 231, 205), floatArrayOf(w*.495f,shipY-h*.21f,w*.495f,shipY-h*.05f,w*.64f,shipY-h*.13f,w*.495f,shipY-h*.21f))
-            circle(c, Color.rgb(38, 22, 18), w*.49f, shipY-h*.27f, h*.035f)
-            path(c, Color.rgb(38,22,18), floatArrayOf(w*.46f,shipY-h*.24f,w*.52f,shipY-h*.24f,w*.54f,shipY-h*.15f,w*.44f,shipY-h*.15f))
-
-            // floating birds
-            paint.color = Color.argb(190, 20, 30, 45); paint.style = Paint.Style.STROKE; paint.strokeWidth = h*.004f
-            for (i in 0..5) {
-                val bx = (w*(.08f+i*.16f)+time*8f)%w
-                val by = h*(.34f+(i%3)*.045f)
-                c.drawArc(bx,by,bx+h*.035f,by+h*.018f,200f,130f,false,paint)
-                c.drawArc(bx+h*.035f,by,bx+h*.07f,by+h*.018f,210f,130f,false,paint)
-            }
-            paint.style = Paint.Style.FILL
+        private fun bg(c: Canvas, w: Float, h: Float, top: Int, bottom: Int) {
+            p.shader = LinearGradient(0f, 0f, 0f, h, top, bottom, Shader.TileMode.CLAMP)
+            c.drawRect(0f, 0f, w, h, p)
+            p.shader = null
         }
 
-        private fun drawSkyWarrior(c: Canvas, w: Float, h: Float) {
-            paint.shader = LinearGradient(0f,0f,0f,h,Color.rgb(95,185,245),Color.rgb(16,32,72),Shader.TileMode.CLAMP)
-            c.drawRect(0f,0f,w,h,paint); paint.shader=null
-            val cx=w*(.5f+(xOffset-.5f)*.15f)+sin(time*.35f)*w*.03f
-            val cy=h*.42f+sin(time*.7f)*h*.025f
-            circle(c,Color.rgb(255,242,190),w*.78f,h*.18f,h*.09f,220)
+        private fun poly(c: Canvas, color: Int, vararg pts: Float) {
+            val path = Path()
+            path.moveTo(pts[0], pts[1])
+            var i = 2
+            while (i < pts.size) { path.lineTo(pts[i], pts[i + 1]); i += 2 }
+            path.close()
+            p.style = Paint.Style.FILL
+            p.color = color
+            p.alpha = 255
+            c.drawPath(path, p)
+        }
+
+        private fun dot(c: Canvas, color: Int, x: Float, y: Float, r: Float, alpha: Int = 255) {
+            p.shader = null; p.style = Paint.Style.FILL; p.color = color; p.alpha = alpha
+            c.drawCircle(x, y, r, p)
+        }
+
+        private fun wave(c: Canvas, w: Float, y: Float, amp: Float, speed: Float, alpha: Int) {
+            p.style = Paint.Style.STROKE
+            p.strokeWidth = maxOf(1.5f, amp * .22f)
+            p.color = Color.WHITE
+            p.alpha = alpha
+            val path = Path()
+            path.moveTo(-w*.1f, y)
+            for (i in 0..12) {
+                val x = w * i / 12f
+                path.lineTo(x, y + sin(time * speed + i*.9f) * amp)
+            }
+            c.drawPath(path, p)
+            p.style = Paint.Style.FILL
+        }
+
+        private fun clouds(c: Canvas, w: Float, h: Float, count: Int, speed: Float) {
+            for (i in 0 until count) {
+                val x = ((i * w / count + time * speed * (1 + i % 3) + w) % (w * 1.25f)) - w*.12f
+                val y = h * (.13f + (i % 4) * .065f)
+                dot(c, Color.WHITE, x, y, h*.027f, 145)
+                dot(c, Color.WHITE, x+h*.035f, y-h*.018f, h*.042f, 165)
+                dot(c, Color.WHITE, x+h*.073f, y, h*.025f, 135)
+            }
+        }
+
+        private fun pirate(c: Canvas, w: Float, h: Float) {
+            bg(c,w,h,Color.rgb(30,126,190),Color.rgb(3,18,45))
+            val px = (xOffset-.5f)*w*.14f
+            dot(c,Color.rgb(255,236,170),w*.73f+sin(time*.18f)*w*.025f,h*.20f,h*.105f,235)
+            clouds(c,w,h,5,5f)
+
+            poly(c,Color.rgb(13,54,66),0f,h*.57f,w*.12f,h*.49f,w*.27f,h*.56f,w*.42f,h*.47f,w*.58f,h*.57f,w*.76f,h*.48f,w,h*.56f,w,h,0f,h)
+            poly(c,Color.rgb(4,73,106),0f,h*.61f,w*.28f,h*.57f,w*.53f,h*.62f,w*.77f,h*.56f,w,h*.61f,w,h,0f,h)
+
+            for (i in 0..12) wave(c,w,h*(.65f+i*.027f),h*.007f,1.4f,80+i*4)
+
+            val bob = sin(time*.9f)*h*.012f
+            val shipX = w*.50f + px
+            val sy = h*.57f + bob
+            // ship hull
+            poly(c,Color.rgb(48,25,22),shipX-w*.17f,sy,shipX+w*.17f,sy,shipX+w*.11f,sy+h*.055f,shipX-w*.12f,sy+h*.055f)
+            p.color=Color.rgb(211,157,80); p.strokeWidth=h*.006f
+            c.drawLine(shipX,sy,shipX,sy-h*.25f,p)
+            // sail
+            poly(c,Color.rgb(245,237,210),shipX+h*.006f,sy-h*.225f,shipX+h*.006f,sy-h*.055f,shipX+w*.12f,sy-h*.13f)
+            // original captain
+            dot(c,Color.rgb(28,20,25),shipX,sy-h*.285f,h*.033f)
+            poly(c,Color.rgb(30,22,27),shipX-h*.045f,sy-h*.255f,shipX+h*.045f,sy-h*.255f,shipX+h*.055f,sy-h*.145f,shipX-h*.055f,sy-h*.145f)
+            // coat
+            p.color=Color.rgb(178,42,55);p.strokeWidth=h*.018f
+            c.drawLine(shipX-h*.04f,sy-h*.22f,shipX-h*.075f,sy-h*.10f,p)
+            c.drawLine(shipX+h*.04f,sy-h*.22f,shipX+h*.075f,sy-h*.10f,p)
+            // second crew member with sword
+            val cx=shipX+w*.08f
+            dot(c,Color.rgb(25,22,28),cx,sy-h*.205f,h*.024f)
+            p.color=Color.rgb(225,225,230);p.strokeWidth=h*.006f
+            c.drawLine(cx+h*.01f,sy-h*.18f,cx+h*.09f,sy-h*.29f,p)
+            // mast flag
+            poly(c,Color.rgb(25,20,28),shipX,sy-h*.255f,shipX+w*.055f,sy-h*.235f,shipX,sy-h*.205f)
+            // foreground spray
+            for(i in 0..24) {
+                val x=((i*.083f*w+time*(15+i%4))%w)
+                val y=h*(.72f+(i%5)*.045f)+sin(time*2+i)*h*.012f
+                dot(c,Color.rgb(190,235,250),x,y,h*.0035f,150)
+            }
+        }
+
+        private fun warrior(c: Canvas, w: Float, h: Float) {
+            bg(c,w,h,Color.rgb(88,180,245),Color.rgb(14,26,68))
+            val cx=w*.5f+(xOffset-.5f)*w*.16f+sin(time*.35f)*w*.025f
+            val cy=h*.42f+sin(time*.7f)*h*.018f
+            dot(c,Color.rgb(255,242,190),w*.78f,h*.18f,h*.095f,220)
+            clouds(c,w,h,6,4f)
+            poly(c,Color.rgb(31,61,91),0f,h*.61f,w*.2f,h*.45f,w*.35f,h*.59f,w*.52f,h*.42f,w*.69f,h*.57f,w*.86f,h*.44f,w,h*.58f,w,h,0f,h)
+            poly(c,Color.rgb(19,36,60),0f,h*.73f,w*.25f,h*.59f,w*.47f,h*.70f,w*.66f,h*.56f,w*.83f,h*.68f,w,h*.58f,w,h,0f,h)
+            // original floating warrior
+            dot(c,Color.rgb(22,19,29),cx,cy-h*.075f,h*.034f)
+            poly(c,Color.rgb(22,19,29),cx-h*.035f,cy-h*.04f,cx+h*.035f,cy-h*.04f,cx+h*.055f,cy+h*.085f,cx-h*.055f,cy+h*.085f)
+            p.color=Color.rgb(224,230,240);p.strokeWidth=h*.008f
+            c.drawLine(cx+h*.01f,cy-h*.015f,cx+h*.14f,cy-h*.15f,p)
+            p.color=Color.rgb(190,40,65);p.strokeWidth=h*.017f
+            c.drawLine(cx-h*.04f,cy-h*.01f,cx-h*.13f,cy-h*.07f,p)
+            for(i in 0..34){
+                val a=time*(.8f+i*.012f)+i
+                val r=h*(.15f+(i%7)*.022f)
+                dot(c,if(i%2==0)Color.rgb(90,230,255)else Color.rgb(255,205,90),cx+cos(a)*r,cy+sin(a)*r*.58f,h*.0035f,190)
+            }
+        }
+
+        private fun island(c: Canvas,w:Float,h:Float){
+            bg(c,w,h,Color.rgb(103,206,250),Color.rgb(10,89,120))
+            dot(c,Color.rgb(255,236,170),w*.72f,h*.18f,h*.10f,225)
+            clouds(c,w,h,5,4f)
+            poly(c,Color.rgb(18,126,147),0f,h*.56f,w*.25f,h*.50f,w*.50f,h*.57f,w*.75f,h*.49f,w,h*.55f,w,h,0f,h)
+            poly(c,Color.rgb(242,199,113),0f,h*.68f,w*.20f,h*.61f,w*.50f,h*.69f,w*.77f,h*.60f,w,h*.67f,w,h,0f,h)
             for(i in 0..5){
-                val x=((i*.22f*w+time*(8+i*2))%(w*1.25f))-w*.1f
-                circle(c,Color.WHITE,x,h*(.2f+(i%3)*.08f),h*.035f,150)
-                circle(c,Color.WHITE,x+h*.04f,h*(.19f+(i%3)*.08f),h*.045f,160)
-            }
-            path(c,Color.rgb(34,60,88),floatArrayOf(0f,h*.62f,w*.18f,h*.48f,w*.34f,h*.59f,w*.52f,h*.43f,w*.70f,h*.57f,w*.84f,h*.46f,w,h*.58f,w,h,0f,h))
-            path(c,Color.rgb(22,39,59),floatArrayOf(0f,h*.72f,w*.24f,h*.60f,w*.45f,h*.70f,w*.64f,h*.56f,w*.82f,h*.68f,w,h*.59f,w,h,0f,h))
-            // original anime sky warrior silhouette
-            circle(c,Color.rgb(22,20,30),cx,cy-h*.075f,h*.035f)
-            path(c,Color.rgb(22,20,30),floatArrayOf(cx-h*.035f,cy-h*.04f,cx+h*.035f,cy-h*.04f,cx+h*.055f,cy+h*.08f,cx-h*.055f,cy+h*.08f))
-            paint.color=Color.rgb(225,235,245); paint.strokeWidth=h*.008f
-            c.drawLine(cx+h*.01f,cy-h*.02f,cx+h*.13f,cy-h*.13f,paint)
-            paint.color=Color.rgb(190,40,65); paint.strokeWidth=h*.018f
-            c.drawLine(cx-h*.045f,cy-h*.015f,cx-h*.12f,cy-h*.065f,paint)
-            // energy particles
-            for(i in 0..22){
-                val a=time*(.35f+i*.006f)+i
-                val rr=h*(.16f+(i%5)*.025f)
-                circle(c,if(i%2==0)Color.rgb(110,230,255)else Color.rgb(255,210,100),cx+cos(a)*rr,cy+sin(a)*rr*.55f,h*.0045f,190)
-            }
-        }
-
-        private fun drawTropicalIsland(c: Canvas, w: Float, h: Float) {
-            paint.shader=LinearGradient(0f,0f,0f,h,Color.rgb(110,205,250),Color.rgb(15,92,125),Shader.TileMode.CLAMP)
-            c.drawRect(0f,0f,w,h,paint); paint.shader=null
-            circle(c,Color.rgb(255,235,165),w*.72f,h*.18f,h*.095f,230)
-            path(c,Color.rgb(22,125,145),floatArrayOf(0f,h*.55f,w*.24f,h*.50f,w*.50f,h*.57f,w*.75f,h*.49f,w,h*.55f,w,h,0f,h))
-            path(c,Color.rgb(245,200,112),floatArrayOf(0f,h*.68f,w*.22f,h*.61f,w*.50f,h*.69f,w*.76f,h*.60f,w,h*.67f,w,h,0f,h))
-            // palms
-            for(i in 0..4){
-                val x=w*(.12f+i*.2f)+sin(time*.3f+i)*w*.015f
-                val base=h*(.64f+(i%2)*.04f)
-                paint.color=Color.rgb(85,55,28);paint.strokeWidth=h*.012f
-                c.drawLine(x,base,x-h*.015f,base-h*.17f,paint)
+                val x=w*(.08f+i*.18f)+sin(time*.4f+i)*w*.012f
+                val base=h*(.65f+(i%2)*.035f)
+                p.color=Color.rgb(86,54,28);p.strokeWidth=h*.011f
+                c.drawLine(x,base,x-h*.012f,base-h*.17f,p)
                 for(j in 0..5){
-                    paint.color=Color.rgb(35,125,65);paint.strokeWidth=h*.009f
-                    val a=-2.6f+j*.65f+sin(time*.5f)*.05f
-                    c.drawLine(x-h*.015f,base-h*.17f,x-h*.015f+cos(a)*h*.12f,base-h*.17f+sin(a)*h*.07f,paint)
+                    p.color=Color.rgb(32,126,65);p.strokeWidth=h*.009f
+                    val a=-2.8f+j*.58f
+                    c.drawLine(x-h*.012f,base-h*.17f,x-h*.012f+cos(a)*h*.12f,base-h*.17f+sin(a)*h*.07f,p)
                 }
             }
-            for(i in 0..12){
-                val yy=h*(.70f+i*.022f)
-                val shift=sin(time*1.2f+i)*w*.018f
-                paint.color=Color.argb(90,235,255,255);paint.strokeWidth=h*.004f;paint.style=Paint.Style.STROKE
-                c.drawLine(w*.05f+shift,yy,w*.35f+shift,yy,paint)
-                c.drawLine(w*.58f-shift,yy,w*.95f-shift,yy,paint)
-            }
-            paint.style=Paint.Style.FILL
+            for(i in 0..16) wave(c,w,h*(.70f+i*.021f),h*.005f,1.2f,75)
         }
 
-        private fun drawNaturalForest(c: Canvas, w: Float, h: Float) {
-            paint.shader=LinearGradient(0f,0f,w,h,Color.rgb(135,190,170),Color.rgb(12,43,36),Shader.TileMode.CLAMP)
-            c.drawRect(0f,0f,w,h,paint);paint.shader=null
-            circle(c,Color.rgb(250,238,175),w*.75f,h*.22f,h*.09f,150)
-            // mist
-            for(i in 0..5) circle(c,Color.WHITE,w*(.1f+i*.18f)+sin(time*.15f+i)*w*.03f,h*(.35f+(i%2)*.08f),h*.055f,35)
-            // distant mountains
-            path(c,Color.rgb(57,105,88),floatArrayOf(0f,h*.58f,w*.18f,h*.35f,w*.34f,h*.57f,w*.52f,h*.31f,w*.68f,h*.56f,w*.84f,h*.37f,w,h*.58f,w,h,0f,h))
-            // river
-            path(c,Color.rgb(55,145,158),floatArrayOf(w*.44f,h*.57f,w*.55f,h*.57f,w*.70f,h,w*.28f,h,w*.44f,h*.57f))
-            // trees
-            for(i in 0..13){
-                val x=w*(i/13f)+sin(i*3f)*w*.02f
-                val base=h*(.63f+(i%4)*.025f)
-                val size=h*(.09f+(i%3)*.025f)
-                paint.color=Color.rgb(45,58,39);paint.strokeWidth=h*.012f
-                c.drawLine(x,base,x,base-size*1.8f,paint)
-                circle(c,Color.rgb(32,92,58),x,base-size*1.45f,size*.75f,220)
-                circle(c,Color.rgb(42,120,70),x-size*.35f,base-size*1.2f,size*.58f,210)
-                circle(c,Color.rgb(50,135,78),x+size*.35f,base-size*1.25f,size*.58f,210)
-            }
-            // firefly-like motion
+        private fun forest(c:Canvas,w:Float,h:Float){
+            bg(c,w,h,Color.rgb(139,196,177),Color.rgb(8,40,32))
+            dot(c,Color.rgb(252,238,175),w*.76f,h*.20f,h*.09f,150)
+            for(i in 0..7) dot(c,Color.WHITE,w*(.08f+i*.14f)+sin(time*.12f+i)*w*.025f,h*(.34f+(i%2)*.07f),h*.055f,28)
+            poly(c,Color.rgb(54,104,87),0f,h*.59f,w*.18f,h*.35f,w*.34f,h*.58f,w*.52f,h*.31f,w*.68f,h*.56f,w*.84f,h*.37f,w,h*.58f,w,h,0f,h)
+            poly(c,Color.rgb(44,132,150),w*.43f,h*.56f,w*.55f,h*.56f,w*.72f,h,w*.25f,h,w*.43f,h*.56f)
             for(i in 0..18){
-                val x=(w*(i*.073f)+time*(4f+(i%3)))%w
-                val y=h*(.3f+(i%7)*.065f)+sin(time+i)*h*.015f
-                circle(c,Color.rgb(220,255,150),x,y,h*.004f,180)
+                val x=w*(i/18f)+sin(i*4f)*w*.012f
+                val base=h*(.62f+(i%5)*.025f)
+                val s=h*(.075f+(i%4)*.022f)
+                p.color=Color.rgb(39,55,38);p.strokeWidth=h*.012f
+                c.drawLine(x,base,x,base-s*2f,p)
+                dot(c,Color.rgb(27,91,56),x,base-s*1.55f,s*.78f,225)
+                dot(c,Color.rgb(43,128,72),x-s*.35f,base-s*1.3f,s*.58f,205)
+                dot(c,Color.rgb(49,139,78),x+s*.35f,base-s*1.32f,s*.55f,205)
+            }
+            for(i in 0..22){
+                val x=(i*.073f*w+time*(4f+i%3))%w
+                val y=h*(.30f+(i%8)*.065f)+sin(time+i)*h*.012f
+                dot(c,Color.rgb(220,255,145),x,y,h*.004f,180)
             }
         }
 
-        private fun drawSunsetOcean(c: Canvas, w: Float, h: Float) {
-            paint.shader=LinearGradient(0f,0f,0f,h,Color.rgb(70,55,125),Color.rgb(245,112,65),Shader.TileMode.CLAMP)
-            c.drawRect(0f,0f,w,h,paint);paint.shader=null
+        private fun sunset(c:Canvas,w:Float,h:Float){
+            bg(c,w,h,Color.rgb(66,49,120),Color.rgb(244,106,61))
             val sx=w*.5f+sin(time*.12f)*w*.04f
-            circle(c,Color.rgb(255,228,145),sx,h*.48f,h*.12f,245)
-            path(c,Color.rgb(34,55,91),floatArrayOf(0f,h*.58f,w*.20f,h*.52f,w*.40f,h*.59f,w*.62f,h*.50f,w*.82f,h*.57f,w,h*.51f,w,h,0f,h))
-            for(i in 0..14){
-                val yy=h*(.64f+i*.025f)
-                val amp=h*.008f
-                paint.color=Color.argb(95,255,210,165);paint.style=Paint.Style.STROKE;paint.strokeWidth=h*.004f
-                val p=Path();p.moveTo(0f,yy)
-                for(j in 1..8)p.lineTo(w*j/8f,yy+sin(time*1.4f+j+i)*amp)
-                c.drawPath(p,paint)
-            }
-            paint.style=Paint.Style.FILL
-            // birds
-            paint.color=Color.argb(180,35,28,55);paint.style=Paint.Style.STROKE;paint.strokeWidth=h*.004f
+            dot(c,Color.rgb(255,225,145),sx,h*.48f,h*.12f,245)
+            clouds(c,w,h,4,3f)
+            poly(c,Color.rgb(36,53,82),0f,h*.59f,w*.20f,h*.52f,w*.40f,h*.59f,w*.62f,h*.50f,w*.82f,h*.57f,w,h*.51f,w,h,0f,h)
+            for(i in 0..15) wave(c,w,h*(.64f+i*.024f),h*.006f,1.4f,80)
+            p.style=Paint.Style.STROKE;p.strokeWidth=h*.004f;p.color=Color.argb(170,35,28,55)
             for(i in 0..5){
-                val bx=w*(.1f+i*.15f)+sin(time*.4f+i)*w*.03f
-                val by=h*(.27f+(i%3)*.04f)
-                c.drawArc(bx,by,bx+h*.03f,by+h*.015f,200f,140f,false,paint)
-                c.drawArc(bx+h*.03f,by,bx+h*.06f,by+h*.015f,210f,140f,false,paint)
+                val x=w*(.10f+i*.15f)+sin(time*.4f+i)*w*.03f
+                val y=h*(.28f+(i%3)*.04f)
+                c.drawArc(x,y,x+h*.03f,y+h*.015f,200f,140f,false,p)
+                c.drawArc(x+h*.03f,y,x+h*.06f,y+h*.015f,210f,140f,false,p)
             }
-            paint.style=Paint.Style.FILL
+            p.style=Paint.Style.FILL
         }
 
-        private fun drawCosmic(c: Canvas, w: Float, h: Float) {
-            paint.shader=LinearGradient(0f,0f,w,h,Color.rgb(5,7,28),Color.rgb(48,5,66),Shader.TileMode.CLAMP)
-            c.drawRect(0f,0f,w,h,paint);paint.shader=null
+        private fun cosmic(c:Canvas,w:Float,h:Float){
+            p.shader=LinearGradient(0f,0f,w,h,Color.rgb(3,5,22),Color.rgb(49,5,70),Shader.TileMode.CLAMP)
+            c.drawRect(0f,0f,w,h,p);p.shader=null
             for(s in stars){
-                var x=s.x*w+(xOffset-.5f)*w*.35f/s.speed
-                x=((x%w)+w)%w
-                circle(c,Color.WHITE,x,s.y*h,s.size,100+(s.speed*80).toInt().coerceAtMost(155))
+                val x=((s.x*w+(xOffset-.5f)*w*.35f/s.speed+time*s.speed*2f)%w+w)%w
+                val y=((s.y*h+(yOffset-.5f)*h*.12f)%h+h)%h
+                dot(c,Color.WHITE,x,y,s.size,100+(s.speed*80).toInt().coerceAtMost(155))
             }
             val cx=w*.5f+sin(time*.7f)*w*.035f
             val cy=h*.46f+cos(time*.55f)*h*.025f
-            val glow=RadialGradient(cx,cy,h*.26f,intArrayOf(Color.WHITE,Color.rgb(80,210,255),Color.rgb(120,45,230),Color.TRANSPARENT),floatArrayOf(0f,.16f,.55f,1f),Shader.TileMode.CLAMP)
-            paint.shader=glow;c.drawCircle(cx,cy,h*.26f,paint);paint.shader=null
-            paint.style=Paint.Style.STROKE
-            paint.strokeWidth=h*.008f
-            paint.color=Color.rgb(110,225,255)
-            for(i in 0..3)c.drawCircle(cx,cy,h*(.15f+i*.045f)+sin(time+i)*h*.012f,paint)
-            paint.style=Paint.Style.FILL
+            p.shader=RadialGradient(cx,cy,h*.29f,intArrayOf(Color.WHITE,Color.rgb(70,215,255),Color.rgb(125,45,230),Color.TRANSPARENT),floatArrayOf(0f,.16f,.55f,1f),Shader.TileMode.CLAMP)
+            c.drawCircle(cx,cy,h*.29f,p);p.shader=null
+            p.style=Paint.Style.STROKE;p.strokeWidth=h*.008f;p.color=Color.rgb(110,225,255)
+            for(i in 0..4)c.drawCircle(cx,cy,h*(.14f+i*.047f)+sin(time+i)*h*.012f,p)
+            p.style=Paint.Style.FILL
         }
     }
 }
