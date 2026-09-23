@@ -20,6 +20,7 @@ class ParallaxWallpaperService : WallpaperService() {
         private var yOffset = .5f
         private var time = 0f
         private var mode = 0
+        private var variant = 0
         private val handler = Handler(Looper.getMainLooper())
         private val stars = Array(150) {
             Star(Random.nextFloat(), Random.nextFloat(), .5f + Random.nextFloat() * 2.4f, .4f + Random.nextFloat() * 1.8f)
@@ -59,10 +60,12 @@ class ParallaxWallpaperService : WallpaperService() {
             val c = try { surfaceHolder.lockCanvas() } catch (_: Exception) { null } ?: return
             try {
                 time += .033f
-                mode = getSharedPreferences("wallpaper", MODE_PRIVATE).getInt("mode", 0)
+                mode = getSharedPreferences("wallpaper", MODE_PRIVATE).getInt("mode", 0).coerceIn(0, 99)
+                variant = mode / 6
+                val scene = mode % 6
                 val w = c.width.toFloat()
                 val h = c.height.toFloat()
-                when (mode) {
+                when (scene) {
                     0 -> pirate(c, w, h)
                     1 -> warrior(c, w, h)
                     2 -> island(c, w, h)
@@ -70,6 +73,7 @@ class ParallaxWallpaperService : WallpaperService() {
                     4 -> sunset(c, w, h)
                     else -> cosmic(c, w, h)
                 }
+                variantEffects(c, w, h, variant)
             } finally {
                 surfaceHolder.unlockCanvasAndPost(c)
             }
@@ -120,6 +124,113 @@ class ParallaxWallpaperService : WallpaperService() {
                 dot(c, Color.WHITE, x, y, h*.027f, 145)
                 dot(c, Color.WHITE, x+h*.035f, y-h*.018f, h*.042f, 165)
                 dot(c, Color.WHITE, x+h*.073f, y, h*.025f, 135)
+            }
+        }
+
+        private fun variantEffects(c: Canvas, w: Float, h: Float, v: Int) {
+            // Each base world gets many atmospheric variants without extra network/API cost.
+            val n = v % 17
+            when (n) {
+                1 -> { // storm
+                    p.color = Color.argb(55, 40, 70, 120)
+                    c.drawRect(0f, 0f, w, h, p)
+                    p.color = Color.argb(170, 215, 235, 255); p.strokeWidth = h*.004f
+                    for (i in 0..18) {
+                        val x = (i*w/18f + time*90f)%w
+                        c.drawLine(x, 0f, x-h*.16f, h*.22f, p)
+                    }
+                }
+                2 -> { // rain
+                    p.color = Color.argb(130, 180, 220, 245); p.strokeWidth = h*.003f
+                    for (i in 0..55) {
+                        val x=(i*w/55f + time*55f)%w
+                        val y=(i*37f + time*120f)%h
+                        c.drawLine(x,y,x-h*.018f,y+h*.07f,p)
+                    }
+                }
+                3 -> { // moonlight
+                    dot(c, Color.rgb(220,235,255), w*.78f, h*.17f, h*.075f, 205)
+                    p.color=Color.argb(70,80,120,190); c.drawRect(0f,0f,w,h,p)
+                }
+                4 -> { // sunrise glow
+                    p.shader=RadialGradient(w*.18f,h*.28f,h*.55f,Color.argb(90,255,205,100),Color.TRANSPARENT,Shader.TileMode.CLAMP)
+                    c.drawRect(0f,0f,w,h,p); p.shader=null
+                }
+                5 -> { // golden hour
+                    p.color=Color.argb(45,255,180,65); c.drawRect(0f,0f,w,h,p)
+                }
+                6 -> { // snow
+                    for(i in 0..45){
+                        val x=(i*w/45f + sin(time*.3f+i)*w*.03f)%w
+                        val y=(i*53f + time*22f)%h
+                        dot(c,Color.WHITE,x,y,h*.006f,190)
+                    }
+                }
+                7 -> { // fireflies
+                    for(i in 0..30){
+                        val x=(i*.071f*w+sin(time*.8f+i)*w*.025f)%w
+                        val y=h*(.25f+(i%11)*.055f)+cos(time+i)*h*.015f
+                        dot(c,Color.rgb(220,255,110),x,y,h*.0045f,190)
+                    }
+                }
+                8 -> { // petals
+                    for(i in 0..25){
+                        val x=(i*.083f*w+time*(12f+i%4))%w
+                        val y=(i*.047f*h+time*18f+sin(time+i)*h*.025f)%h
+                        dot(c,Color.rgb(255,150,190),x,y,h*.006f,155)
+                    }
+                }
+                9 -> { // autumn leaves
+                    for(i in 0..24){
+                        val x=(i*.071f*w+time*(10f+i%3))%w
+                        val y=(i*.053f*h+time*25f)%h
+                        dot(c,if(i%2==0)Color.rgb(220,105,35)else Color.rgb(245,175,55),x,y,h*.007f,175)
+                    }
+                }
+                10 -> { // magic sparks
+                    for(i in 0..34){
+                        val a=time*(.7f+i*.01f)+i
+                        val r=h*(.08f+(i%9)*.018f)
+                        dot(c,if(i%2==0)Color.rgb(90,230,255)else Color.rgb(255,210,90),
+                            w*.5f+cos(a)*r,h*.45f+sin(a)*r,h*.0035f,200)
+                    }
+                }
+                11 -> { // ocean mist
+                    p.shader=LinearGradient(0f,h*.55f,0f,h,Color.TRANSPARENT,Color.argb(105,220,245,255),Shader.TileMode.CLAMP)
+                    c.drawRect(0f,h*.45f,w,h,p); p.shader=null
+                }
+                12 -> { // lightning
+                    if (sin(time*1.7f)>0.93f) {
+                        p.color=Color.argb(190,220,245,255); p.strokeWidth=h*.006f
+                        c.drawLine(w*.64f,0f,w*.56f,h*.24f,p)
+                        c.drawLine(w*.56f,h*.24f,w*.62f,h*.39f,p)
+                    }
+                }
+                13 -> { // aurora
+                    p.style=Paint.Style.STROKE; p.strokeWidth=h*.025f; p.color=Color.argb(75,80,255,210)
+                    val path=Path(); path.moveTo(0f,h*.35f)
+                    for(i in 0..12){ val x=w*i/12f; path.lineTo(x,h*(.33f+sin(time*.35f+i*.65f)*.06f)) }
+                    c.drawPath(path,p); p.style=Paint.Style.FILL
+                }
+                14 -> { // dream glow
+                    p.shader=RadialGradient(w*.5f,h*.45f,h*.5f,Color.argb(65,170,100,255),Color.TRANSPARENT,Shader.TileMode.CLAMP)
+                    c.drawRect(0f,0f,w,h,p); p.shader=null
+                }
+                15 -> { // starfall
+                    p.color=Color.argb(185,245,245,255); p.strokeWidth=h*.0035f
+                    for(i in 0..13){
+                        val x=(i*.097f*w+time*45f)%w
+                        val y=(i*.061f*h+time*32f)%h
+                        c.drawLine(x,y,x+h*.035f,y+h*.035f,p)
+                    }
+                }
+                16 -> { // ember night
+                    for(i in 0..28){
+                        val x=(i*.079f*w+sin(time*.5f+i)*w*.04f)%w
+                        val y=(i*.043f*h-time*18f+h)%h
+                        dot(c,if(i%2==0)Color.rgb(255,115,45)else Color.rgb(255,205,75),x,y,h*.0045f,175)
+                    }
+                }
             }
         }
 
