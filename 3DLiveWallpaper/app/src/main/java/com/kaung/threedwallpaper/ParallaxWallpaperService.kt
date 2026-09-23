@@ -22,7 +22,7 @@ class ParallaxWallpaperService : WallpaperService() {
         override fun onSurfaceChanged(h:SurfaceHolder, f:Int, w:Int, ht:Int) {
             super.onSurfaceChanged(h,f,w,ht); draw()
         }
-        override fun onOffsetsChanged(x:Float, y:Float, xStep:Float, yStep:Float, xPixels:Float, yPixels:Float) {
+        override fun onOffsetsChanged(x:Float, y:Float, xStep:Float, yStep:Float, xPixels:Int, yPixels:Int) {
             xOffset=x; draw()
         }
         private fun draw() {
@@ -44,8 +44,8 @@ class ParallaxWallpaperService : WallpaperService() {
                     glow.color=Color.WHITE; glow.alpha=120+(i%120)
                     canvas.drawCircle((sx+w)%w,sy,1f+(i%3),glow)
                 }
-                val cx=w*(.5f+(xOffset-.5f)*.35f)+sin(t*.8)*w*.03f
-                val cy=h*.48f+sin(t*.55)*h*.04f
+                val cx=w*(.5f+(xOffset-.5f)*.35f)+sin(t*.8).toFloat()*w*.03f
+                val cy=h*.48f+sin(t*.55).toFloat()*h*.04f
                 val r=h*.24f
                 val orb=RadialGradient(cx,cy,r,
                     intArrayOf(Color.rgb(120,210,255),Color.rgb(80,40,180),Color.TRANSPARENT),
