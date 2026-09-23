@@ -45,28 +45,34 @@ class MainActivity : Activity() {
         }, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = 4 })
 
         root.addView(TextView(this).apply {
-            text = "Choose a live world"
+            text = "100 animated worlds • choose a style"
             textSize = 15f
             setTextColor(Color.rgb(150, 220, 255))
             gravity = Gravity.CENTER
         }, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = 18 })
 
         val section = TextView(this).apply {
-            text = "LIVE WALLPAPER WORLDS"
+            text = "100 LIVE WALLPAPER WORLDS"
             textSize = 13f
             setTextColor(Color.rgb(125, 180, 220))
             gravity = Gravity.START
         }
         root.addView(section, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = 8 })
 
-        val themes = listOf(
-            "🏴‍☠️  Anime Pirate Sea" to 0,
-            "⚔️  Anime Sky Warrior" to 1,
-            "🌊  Tropical Island" to 2,
-            "🌲  Natural Forest" to 3,
-            "🌅  Sunset Ocean" to 4,
-            "🌌  Cosmic Dream" to 5
+        val bases = listOf(
+            "🏴‍☠️ Anime Pirate", "⚔️ Anime Warrior", "🌴 Tropical Nature",
+            "🌲 Mystic Forest", "🌅 Cinematic Sunset", "🌌 Cosmic Space"
         )
+        val effects = listOf(
+            "Original", "Storm", "Rain", "Moonlight", "Sunrise", "Golden Hour",
+            "Snow", "Fireflies", "Cherry Petals", "Autumn Leaves", "Magic Sparks",
+            "Ocean Mist", "Lightning", "Aurora", "Dream Glow", "Starfall", "Ember Night"
+        )
+        val themes = (0 until 100).map { id ->
+            val base = bases[id % 6]
+            val effect = effects[(id / 6) % effects.size]
+            "LIVE %02d  •  %s — %s".format(id + 1, base, effect) to id
+        }
 
         themes.forEach { (name, id) ->
             val button = Button(this).apply {
@@ -117,7 +123,7 @@ class MainActivity : Activity() {
         root.addView(previewButton, LinearLayout.LayoutParams(-1, 62))
 
         root.addView(TextView(this).apply {
-            text = "Animated waves • moving clouds • parallax depth • drifting particles"
+            text = "100 live presets • parallax camera • weather • particles • no API required"
             textSize = 12f
             setTextColor(Color.rgb(125, 140, 165))
             gravity = Gravity.CENTER
