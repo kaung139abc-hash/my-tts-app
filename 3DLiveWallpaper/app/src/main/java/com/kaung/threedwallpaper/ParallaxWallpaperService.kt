@@ -13,6 +13,7 @@ class ParallaxWallpaperService : WallpaperService() {
     inner class Engine : WallpaperService.Engine() {
         private var visible = false
         private var xOffset = 0.5f
+        private var mode = getSharedPreferences("wallpaper", MODE_PRIVATE).getInt("mode", 0)
         private var time = 0f
         private val handler = android.os.Handler(android.os.Looper.getMainLooper())
         private val stars = Array(150) {
@@ -57,15 +58,21 @@ class ParallaxWallpaperService : WallpaperService() {
                 val w = canvas.width.toFloat()
                 val h = canvas.height.toFloat()
                 time += 0.035f
+                mode = getSharedPreferences("wallpaper", MODE_PRIVATE).getInt("mode", 0)
 
-                val bg = LinearGradient(0f, 0f, w, h,
-                    Color.rgb(4, 6, 24), Color.rgb(28, 5, 52), Shader.TileMode.CLAMP)
+                val bg = when (mode) {
+                    1 -> LinearGradient(0f, 0f, w, h, Color.rgb(2, 18, 28), Color.rgb(5, 55, 70), Shader.TileMode.CLAMP)
+                    2 -> LinearGradient(0f, 0f, w, h, Color.rgb(18, 3, 28), Color.rgb(55, 4, 30), Shader.TileMode.CLAMP)
+                    3 -> LinearGradient(0f, 0f, w, h, Color.rgb(3, 18, 12), Color.rgb(3, 45, 55), Shader.TileMode.CLAMP)
+                    else -> LinearGradient(0f, 0f, w, h, Color.rgb(4, 6, 24), Color.rgb(28, 5, 52), Shader.TileMode.CLAMP)
+                }
                 paint.shader = bg
                 canvas.drawRect(0f, 0f, w, h, paint)
 
                 // Nebula bands
+                val c1 = when(mode){1->Color.rgb(40,240,220);2->Color.rgb(255,55,170);3->Color.rgb(70,255,150);else->Color.rgb(70,210,255)}
                 paint.shader = RadialGradient(w * 0.72f, h * 0.30f, h * 0.65f,
-                    intArrayOf(Color.argb(90, 70, 210, 255), Color.argb(35, 140, 60, 255), Color.TRANSPARENT),
+                    intArrayOf(Color.argb(100, c1 and 0xFF0000 shr 16, c1 and 0x00FF00 shr 8, c1 and 0xFF), Color.argb(35, 140, 60, 255), Color.TRANSPARENT),
                     floatArrayOf(0f, .45f, 1f), Shader.TileMode.CLAMP)
                 canvas.drawCircle(w * 0.72f, h * 0.30f, h * 0.65f, paint)
 
@@ -92,7 +99,7 @@ class ParallaxWallpaperService : WallpaperService() {
                 val r = h * .22f
 
                 paint.shader = RadialGradient(cx, cy, r,
-                    intArrayOf(Color.WHITE, Color.rgb(80, 220, 255), Color.rgb(100, 45, 220), Color.TRANSPARENT),
+                    intArrayOf(Color.WHITE, c1, if(mode==2) Color.rgb(255,35,120) else Color.rgb(100,45,220), Color.TRANSPARENT),
                     floatArrayOf(0f, .16f, .52f, 1f), Shader.TileMode.CLAMP)
                 canvas.drawCircle(cx, cy, r, paint)
 
@@ -114,7 +121,7 @@ class ParallaxWallpaperService : WallpaperService() {
                     val rr = r * (1.05f + (i % 3) * .13f)
                     val px = cx + cos(a) * rr
                     val py = cy + sin(a) * rr * .58f
-                    paint.color = if (i % 2 == 0) Color.rgb(100, 230, 255) else Color.rgb(220, 100, 255)
+                    paint.color = if (i % 2 == 0) c1 else Color.rgb(220, 100, 255)
                     paint.alpha = 210
                     canvas.drawCircle(px.toFloat(), py.toFloat(), h * .0045f, paint)
                 }
