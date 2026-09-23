@@ -3,6 +3,7 @@ package com.kaung.threedwallpaper
 import android.graphics.*
 import android.service.wallpaper.WallpaperService
 import android.view.SurfaceHolder
+import kotlin.math.cos
 import kotlin.math.sin
 import kotlin.random.Random
 
@@ -10,51 +11,116 @@ class ParallaxWallpaperService : WallpaperService() {
     override fun onCreateEngine() = Engine()
 
     inner class Engine : WallpaperService.Engine() {
-        private var running=false
-        private var xOffset=0.5f
-        private var frame=0L
-        private val stars=Array(90) { Pair(Random.nextFloat(), Random.nextFloat()) }
+        private var visible = false
+        private var xOffset = 0.5f
+        private var time = 0f
+        private val handler = android.os.Handler(android.os.Looper.getMainLooper())
+        private val stars = Array(150) {
+            Star(Random.nextFloat(), Random.nextFloat(), 0.4f + Random.nextFloat() * 2.2f, 0.4f + Random.nextFloat() * 1.6f)
+        }
+        private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+        private val frame = object : Runnable {
+            override fun run() {
+                drawFrame()
+                if (visible) handler.postDelayed(this, 33L)
+            }
+        }
 
-        override fun onVisibilityChanged(visible:Boolean) {
-            running=visible
-            if (visible) draw()
+        data class Star(val x: Float, val y: Float, val size: Float, val speed: Float)
+
+        override fun onVisibilityChanged(v: Boolean) {
+            visible = v
+            handler.removeCallbacks(frame)
+            if (v) handler.post(frame)
         }
-        override fun onSurfaceChanged(h:SurfaceHolder, f:Int, w:Int, ht:Int) {
-            super.onSurfaceChanged(h,f,w,ht); draw()
+
+        override fun onSurfaceChanged(h: SurfaceHolder, f: Int, w: Int, ht: Int) {
+            super.onSurfaceChanged(h, f, w, ht)
+            if (visible) drawFrame()
         }
-        override fun onOffsetsChanged(x:Float, y:Float, xStep:Float, yStep:Float, xPixels:Int, yPixels:Int) {
-            xOffset=x; draw()
+
+        override fun onOffsetsChanged(x: Float, y: Float, xStep: Float, yStep: Float, xPixels: Int, yPixels: Int) {
+            xOffset = x
+            if (visible) drawFrame()
         }
-        private fun draw() {
-            if (!running) return
-            val holder=surfaceHolder
-            val canvas=try { holder.lockCanvas() } catch(_:Exception){ null } ?: return
+
+        override fun onSurfaceDestroyed(holder: SurfaceHolder) {
+            visible = false
+            handler.removeCallbacks(frame)
+            super.onSurfaceDestroyed(holder)
+        }
+
+        private fun drawFrame() {
+            if (!visible) return
+            val canvas = try { surfaceHolder.lockCanvas() } catch (_: Exception) { null } ?: return
             try {
-                val w=canvas.width.toFloat(); val h=canvas.height.toFloat()
-                val t=(frame++ % 100000)/18f
-                canvas.drawColor(Color.BLACK)
-                val bg=LinearGradient(0f,0f,w,h,
-                    Color.rgb(8,10,30),Color.rgb(30,5,55),Shader.TileMode.CLAMP)
-                canvas.drawRect(0f,0f,w,h,Paint().apply{shader=bg})
-                val glow=Paint(Paint.ANTI_ALIAS_FLAG)
-                stars.forEachIndexed { i,p ->
-                    val depth=1f+(i%5)*0.7f
-                    val sx=(p.first*w + (xOffset-.5f)*w*.25f/depth)%w
-                    val sy=p.second*h
-                    glow.color=Color.WHITE; glow.alpha=120+(i%120)
-                    canvas.drawCircle((sx+w)%w,sy,1f+(i%3),glow)
+                val w = canvas.width.toFloat()
+                val h = canvas.height.toFloat()
+                time += 0.035f
+
+                val bg = LinearGradient(0f, 0f, w, h,
+                    Color.rgb(4, 6, 24), Color.rgb(28, 5, 52), Shader.TileMode.CLAMP)
+                paint.shader = bg
+                canvas.drawRect(0f, 0f, w, h, paint)
+
+                // Nebula bands
+                paint.shader = RadialGradient(w * 0.72f, h * 0.30f, h * 0.65f,
+                    intArrayOf(Color.argb(90, 70, 210, 255), Color.argb(35, 140, 60, 255), Color.TRANSPARENT),
+                    floatArrayOf(0f, .45f, 1f), Shader.TileMode.CLAMP)
+                canvas.drawCircle(w * 0.72f, h * 0.30f, h * 0.65f, paint)
+
+                paint.shader = RadialGradient(w * 0.20f, h * 0.76f, h * 0.55f,
+                    intArrayOf(Color.argb(65, 255, 55, 170), Color.TRANSPARENT),
+                    null, Shader.TileMode.CLAMP)
+                canvas.drawCircle(w * 0.20f, h * 0.76f, h * 0.55f, paint)
+                paint.shader = null
+
+                // Depth stars
+                for (s in stars) {
+                    val depth = s.speed
+                    var sx = s.x * w + (xOffset - .5f) * w * .32f / depth
+                    sx = ((sx % w) + w) % w
+                    val sy = s.y * h
+                    paint.color = Color.WHITE
+                    paint.alpha = (70 + s.speed * 70).toInt().coerceAtMost(255)
+                    canvas.drawCircle(sx, sy, s.size, paint)
                 }
-                val cx=w*(.5f+(xOffset-.5f)*.35f)+sin(t*.8).toFloat()*w*.03f
-                val cy=h*.48f+sin(t*.55).toFloat()*h*.04f
-                val r=h*.24f
-                val orb=RadialGradient(cx,cy,r,
-                    intArrayOf(Color.rgb(120,210,255),Color.rgb(80,40,180),Color.TRANSPARENT),
-                    floatArrayOf(0f,.45f,1f),Shader.TileMode.CLAMP)
-                glow.shader=orb; glow.alpha=255
-                canvas.drawCircle(cx,cy,r,glow)
-            } finally { holder.unlockCanvasAndPost(canvas) }
-            if (running) surfaceHolder.surface?.let { Thread.sleep(33) }
-            if (running) draw()
+
+                // Central energy core
+                val cx = w * (.5f + (xOffset - .5f) * .22f) + cos(time * .8f) * w * .035f
+                val cy = h * .47f + sin(time * .65f) * h * .035f
+                val r = h * .22f
+
+                paint.shader = RadialGradient(cx, cy, r,
+                    intArrayOf(Color.WHITE, Color.rgb(80, 220, 255), Color.rgb(100, 45, 220), Color.TRANSPARENT),
+                    floatArrayOf(0f, .16f, .52f, 1f), Shader.TileMode.CLAMP)
+                canvas.drawCircle(cx, cy, r, paint)
+
+                paint.shader = null
+                paint.style = Paint.Style.STROKE
+                paint.strokeWidth = h * .012f
+                paint.alpha = 180
+                paint.color = Color.rgb(110, 225, 255)
+                canvas.drawCircle(cx, cy, r * (.72f + sin(time) * .06f), paint)
+                paint.strokeWidth = h * .006f
+                paint.alpha = 120
+                canvas.drawCircle(cx, cy, r * (.92f + cos(time * .7f) * .05f), paint)
+                paint.style = Paint.Style.FILL
+                paint.alpha = 255
+
+                // Orbit particles
+                for (i in 0 until 18) {
+                    val a = time * (.55f + i * .012f) + i * 0.35f
+                    val rr = r * (1.05f + (i % 3) * .13f)
+                    val px = cx + cos(a) * rr
+                    val py = cy + sin(a) * rr * .58f
+                    paint.color = if (i % 2 == 0) Color.rgb(100, 230, 255) else Color.rgb(220, 100, 255)
+                    paint.alpha = 210
+                    canvas.drawCircle(px.toFloat(), py.toFloat(), h * .0045f, paint)
+                }
+            } finally {
+                surfaceHolder.unlockCanvasAndPost(canvas)
+            }
         }
     }
 }
