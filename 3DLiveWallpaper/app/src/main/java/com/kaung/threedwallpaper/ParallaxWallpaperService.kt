@@ -8,6 +8,8 @@ import kotlin.math.sin
 import kotlin.random.Random
 
 class ParallaxWallpaperService : WallpaperService() {
+    private data class Star(val x: Float, val y: Float, val size: Float, val speed: Float)
+
     override fun onCreateEngine() = Engine()
 
     inner class Engine : WallpaperService.Engine() {
@@ -27,7 +29,6 @@ class ParallaxWallpaperService : WallpaperService() {
             }
         }
 
-        data class Star(val x: Float, val y: Float, val size: Float, val speed: Float)
 
         override fun onVisibilityChanged(v: Boolean) {
             visible = v
