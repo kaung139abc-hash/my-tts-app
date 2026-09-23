@@ -72,7 +72,7 @@ class ParallaxWallpaperService : WallpaperService() {
                 // Nebula bands
                 val c1 = when(mode){1->Color.rgb(40,240,220);2->Color.rgb(255,55,170);3->Color.rgb(70,255,150);else->Color.rgb(70,210,255)}
                 paint.shader = RadialGradient(w * 0.72f, h * 0.30f, h * 0.65f,
-                    intArrayOf(Color.argb(100, c1 and 0xFF0000 shr 16, c1 and 0x00FF00 shr 8, c1 and 0xFF), Color.argb(35, 140, 60, 255), Color.TRANSPARENT),
+                    intArrayOf(Color.argb(100, Color.red(c1), Color.green(c1), Color.blue(c1)), Color.argb(35, 140, 60, 255), Color.TRANSPARENT),
                     floatArrayOf(0f, .45f, 1f), Shader.TileMode.CLAMP)
                 canvas.drawCircle(w * 0.72f, h * 0.30f, h * 0.65f, paint)
 
