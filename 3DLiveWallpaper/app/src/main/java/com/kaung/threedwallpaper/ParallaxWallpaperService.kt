@@ -74,6 +74,7 @@ class ParallaxWallpaperService : WallpaperService() {
                     else -> cosmic(c, w, h)
                 }
                 variantEffects(c, w, h, variant)
+                cinematicFinish(c, w, h)
             } finally {
                 surfaceHolder.unlockCanvasAndPost(c)
             }
@@ -232,6 +233,41 @@ class ParallaxWallpaperService : WallpaperService() {
                     }
                 }
             }
+        }
+
+        private fun cinematicFinish(c: Canvas, w: Float, h: Float) {
+            // Final depth pass: subtle camera breathing, foreground bokeh and cinematic vignette.
+            val swayX = sin(time * .42f) * w * .008f
+            val swayY = cos(time * .31f) * h * .006f
+
+            for (i in 0..10) {
+                val x = ((i * w / 11f + time * (7f + i % 3) + swayX) % (w * 1.15f)) - w * .075f
+                val y = h * (.18f + (i % 7) * .095f) + swayY
+                dot(c, Color.WHITE, x, y, h * (.0025f + (i % 3) * .0012f), 22)
+            }
+
+            // Soft edge vignette keeps the center subject readable without obscuring the artwork.
+            p.shader = RadialGradient(
+                w * .5f, h * .46f, h * .82f,
+                Color.TRANSPARENT,
+                Color.argb(105, 0, 0, 0),
+                Shader.TileMode.CLAMP
+            )
+            c.drawRect(0f, 0f, w, h, p)
+            p.shader = null
+
+            // Tiny lens shimmer responds to the animated scene time.
+            val pulse = (.5f + .5f * sin(time * .75f))
+            p.shader = RadialGradient(
+                w * (.72f + sin(time * .12f) * .025f),
+                h * (.18f + cos(time * .16f) * .012f),
+                h * .18f,
+                Color.argb((18f + pulse * 16f).toInt(), 255, 225, 170),
+                Color.TRANSPARENT,
+                Shader.TileMode.CLAMP
+            )
+            c.drawRect(0f, 0f, w, h, p)
+            p.shader = null
         }
 
         private fun pirate(c: Canvas, w: Float, h: Float) {
