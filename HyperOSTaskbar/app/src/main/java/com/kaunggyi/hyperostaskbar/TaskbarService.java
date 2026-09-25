@@ -58,8 +58,6 @@ public class TaskbarService extends Service {
                     .setCategory(Notification.CATEGORY_SERVICE)
                     .build();
 
-            // Let Android use the service type declared in AndroidManifest.xml.
-            // This avoids a runtime foreground-service type mismatch on some Android/HyperOS builds.
             startForeground(NOTIFICATION_ID, notification);
 
             if (!Settings.canDrawOverlays(this)) {
@@ -83,11 +81,11 @@ public class TaskbarService extends Service {
         final LinearLayout shell = new LinearLayout(this);
         shell.setOrientation(LinearLayout.VERTICAL);
         shell.setGravity(Gravity.CENTER_HORIZONTAL);
-        shell.setPadding(dp(4), dp(6), dp(4), dp(6));
+        shell.setPadding(dp(3), dp(6), dp(3), dp(6));
 
         GradientDrawable background = new GradientDrawable();
         background.setColor(0xF21A1A24);
-        background.setCornerRadius(dp(24));
+        background.setCornerRadius(dp(18));
         background.setStroke(dp(1), 0xFF6C63FF);
         shell.setBackground(background);
         shell.setElevation(dp(10));
@@ -152,16 +150,13 @@ public class TaskbarService extends Service {
             }
         });
 
-        int maxVisible = 5;
-        for (int i = 0; i < apps.size(); i++) {
-            addAppCell(appsColumn, pm, apps.get(i));
+        for (ApplicationInfo app : apps) {
+            addAppCell(appsColumn, pm, app);
         }
 
-        LinearLayout.LayoutParams scrollParams = new LinearLayout.LayoutParams(
-                dp(72),
-                dp(360)
-        );
-        shell.addView(scroll, scrollParams);
+        shell.addView(scroll, new LinearLayout.LayoutParams(
+                dp(72), dp(360)
+        ));
 
         if (apps.isEmpty()) {
             TextView empty = makeButton("Apps");
@@ -189,7 +184,7 @@ public class TaskbarService extends Service {
                 : WindowManager.LayoutParams.TYPE_PHONE;
 
         WindowManager.LayoutParams lp = new WindowManager.LayoutParams(
-                dp(80),
+                dp(78),
                 WindowManager.LayoutParams.WRAP_CONTENT,
                 type,
                 WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
@@ -197,7 +192,8 @@ public class TaskbarService extends Service {
                 PixelFormat.TRANSLUCENT
         );
 
-        lp.gravity = Gravity.RIGHT | Gravity.CENTER_VERTICAL;
+        // Taskbar stays on the LEFT side of the screen.
+        lp.gravity = Gravity.LEFT | Gravity.CENTER_VERTICAL;
         lp.x = dp(6);
 
         try {
@@ -248,9 +244,7 @@ public class TaskbarService extends Service {
             PackageManager pm = getPackageManager();
             Intent intent = pm.getLaunchIntentForPackage(packageName);
 
-            if (intent == null) {
-                return;
-            }
+            if (intent == null) return;
 
             intent.addFlags(
                     Intent.FLAG_ACTIVITY_NEW_TASK
@@ -276,9 +270,13 @@ public class TaskbarService extends Service {
                 int left = col == 0 ? margin : halfW + margin;
                 int right = col == 0 ? halfW - margin : w - margin;
                 int top = usableTop + (row * halfH) + margin;
-                int bottom = Math.min(usableBottom - margin, usableTop + ((row + 1) * halfH) - margin);
+                int bottom = Math.min(usableBottom - margin,
+                        usableTop + ((row + 1) * halfH) - margin);
 
-                Rect bounds = new Rect(left, top, right, Math.max(top + dp(240), bottom));
+                Rect bounds = new Rect(
+                        left, top, right,
+                        Math.max(top + dp(240), bottom)
+                );
 
                 ActivityOptions options = ActivityOptions.makeBasic();
                 options.setLaunchBounds(bounds);
@@ -328,9 +326,7 @@ public class TaskbarService extends Service {
 
     private void removeBar() {
         try {
-            if (bar != null && wm != null) {
-                wm.removeView(bar);
-            }
+            if (bar != null && wm != null) wm.removeView(bar);
         } catch (Exception ignored) {
         }
         bar = null;
@@ -339,17 +335,12 @@ public class TaskbarService extends Service {
     private void createChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             NotificationChannel channel = new NotificationChannel(
-                    CHANNEL,
-                    "HyperDock",
-                    NotificationManager.IMPORTANCE_LOW
-            );
+                    CHANNEL, "HyperDock", NotificationManager.IMPORTANCE_LOW);
 
             NotificationManager manager =
                     (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
 
-            if (manager != null) {
-                manager.createNotificationChannel(channel);
-            }
+            if (manager != null) manager.createNotificationChannel(channel);
         }
     }
 
@@ -358,8 +349,7 @@ public class TaskbarService extends Service {
         if (bar == null && Settings.canDrawOverlays(this)) {
             try {
                 buildBar();
-            } catch (Exception ignored) {
-            }
+            } catch (Exception ignored) {}
         }
         return START_STICKY;
     }
