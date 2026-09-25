@@ -15,8 +15,7 @@ import java.util.*;
 public class TaskbarService extends Service {
     private static final String CHANNEL = "taskbar";
     private static final int NOTIFICATION_ID = 1001;
-    private static final int MAX_APPS = 8;
-    private WindowManager wm;
+        private WindowManager wm;
     private View bar;
 
     private int dp(float v) {
@@ -61,6 +60,16 @@ public class TaskbarService extends Service {
         shell.setGravity(Gravity.CENTER_VERTICAL);
         shell.setPadding(dp(8), dp(5), dp(8), dp(5));
 
+        final HorizontalScrollView scroll = new HorizontalScrollView(this);
+        scroll.setHorizontalScrollBarEnabled(false);
+        scroll.setFillViewport(false);
+        final LinearLayout appsRow = new LinearLayout(this);
+        appsRow.setOrientation(LinearLayout.HORIZONTAL);
+        appsRow.setGravity(Gravity.CENTER_VERTICAL);
+        scroll.addView(appsRow, new HorizontalScrollView.LayoutParams(
+                HorizontalScrollView.LayoutParams.WRAP_CONTENT,
+                HorizontalScrollView.LayoutParams.WRAP_CONTENT));
+
         GradientDrawable bg = new GradientDrawable();
         bg.setColor(0xF21A1A24);
         bg.setCornerRadius(dp(28));
@@ -102,10 +111,13 @@ public class TaskbarService extends Service {
             }
         });
 
-        int count = Math.min(MAX_APPS, apps.size());
+        int count = apps.size();
         for (int i = 0; i < count; i++) {
-            addAppCell(shell, pm, apps.get(i));
+            addAppCell(appsRow, pm, apps.get(i));
         }
+
+        shell.addView(scroll, new LinearLayout.LayoutParams(
+                0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
 
         if (count == 0) {
             TextView empty = makeButton("Apps");
@@ -158,7 +170,7 @@ public class TaskbarService extends Service {
 
         try {
             wm.addView(bar, lp);
-        } catch (WindowManager.BadTokenException | SecurityException e) {
+        } catch (RuntimeException e) {
             bar = null;
             stopSelf();
         }
