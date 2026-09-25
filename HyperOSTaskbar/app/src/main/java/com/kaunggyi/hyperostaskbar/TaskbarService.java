@@ -212,6 +212,8 @@ public class TaskbarService extends Service {
                 try {
                     Intent in = pm.getLaunchIntentForPackage(ai.packageName);
                     if (in != null) {
+                        // Keep each launch as a separate task so the Taskbar can switch
+                        // between several apps without replacing the previous task.
                         in.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK
                                 | Intent.FLAG_ACTIVITY_MULTIPLE_TASK
                                 | Intent.FLAG_ACTIVITY_NEW_DOCUMENT
@@ -219,21 +221,23 @@ public class TaskbarService extends Service {
 
                         int w = getResources().getDisplayMetrics().widthPixels;
                         int h = getResources().getDisplayMetrics().heightPixels;
-                        int top = dp(24);
-                        int bottom = h - dp(70);
-                        int halfW = w / 2;
-                        int halfH = Math.max(dp(260), (bottom - top) / 2);
+                        int top = dp(8);
+                        int bottom = Math.max(top + dp(300), h - dp(64));
+                        int gap = dp(4);
+                        int usableH = Math.max(dp(280), bottom - top);
                         int slot = nextWindowSlot++ % 4;
-                        int col = slot % 2;
-                        int row = slot / 2;
-                        int left = col * halfW;
-                        int right = (col == 1) ? w : halfW;
-                        int y1 = top + row * halfH;
-                        int y2 = (row == 1) ? bottom : Math.min(bottom, y1 + halfH);
+                        int col = slot & 1;
+                        int row = slot >> 1;
+                        int left = col == 0 ? 0 : w / 2;
+                        int right = col == 0 ? (w / 2) : w;
+                        int topSlot = top + (row * usableH / 2);
+                        int bottomSlot = top + ((row + 1) * usableH / 2);
+                        Rect bounds = new Rect(left + gap, topSlot + gap,
+                                right - gap, bottomSlot - gap);
 
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
                             ActivityOptions options = ActivityOptions.makeBasic();
-                            options.setLaunchBounds(new Rect(left, y1, right, y2));
+                            options.setLaunchBounds(bounds);
                             startActivity(in, options.toBundle());
                         } else {
                             startActivity(in);
