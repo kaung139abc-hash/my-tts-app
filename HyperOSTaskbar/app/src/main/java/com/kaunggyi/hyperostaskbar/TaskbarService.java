@@ -1,36 +1,56 @@
 package com.kaunggyi.hyperostaskbar;
 
-import android.app.*;
-import android.content.*;
-import android.content.pm.*;
+import android.app.ActivityOptions;
+import android.app.Notification;
+import android.app.NotificationChannel;
+import android.app.NotificationManager;
+import android.app.Service;
+import android.content.Intent;
+import android.content.pm.ApplicationInfo;
+import android.content.pm.PackageManager;
+import android.content.pm.ResolveInfo;
 import android.graphics.Color;
 import android.graphics.PixelFormat;
-import android.graphics.drawable.GradientDrawable;
-import android.os.*;
-import android.provider.Settings;
-import android.view.*;
-import android.widget.*;
-import android.app.ActivityOptions;
 import android.graphics.Rect;
-import java.util.*;
+import android.graphics.drawable.GradientDrawable;
+import android.os.Build;
+import android.os.IBinder;
+import android.provider.Settings;
+import android.view.Gravity;
+import android.view.View;
+import android.view.WindowManager;
+import android.widget.ImageView;
+import android.widget.LinearLayout;
+import android.widget.ScrollView;
+import android.widget.TextView;
+
+import java.util.ArrayList;
+import java.util.List;
 
 public class TaskbarService extends Service {
-    private static final String CHANNEL = "taskbar";
+    private static final String CHANNEL = "hyperdock";
     private static final int NOTIFICATION_ID = 1001;
-        private WindowManager wm;
+
+    private WindowManager wm;
     private View bar;
     private int nextWindowSlot = 0;
 
-    private int dp(float v) {
-        return (int) (v * getResources().getDisplayMetrics().density + 0.5f);
+    private int dp(float value) {
+        return (int) (value * getResources().getDisplayMetrics().density + 0.5f);
     }
 
-    @Override public void onCreate() {
+    @Override
+    public void onCreate() {
         super.onCreate();
+
         try {
             createChannel();
 
-            Notification n = new Notification.Builder(this, CHANNEL)
+            Notification.Builder builder = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
+                    ? new Notification.Builder(this, CHANNEL)
+                    : new Notification.Builder(this);
+
+            Notification notification = builder
                     .setContentTitle("HyperDock")
                     .setContentText("HyperDock is running")
                     .setSmallIcon(android.R.drawable.ic_menu_view)
@@ -39,10 +59,13 @@ public class TaskbarService extends Service {
                     .build();
 
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                startForeground(NOTIFICATION_ID, n,
-                        ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE);
+                startForeground(
+                        NOTIFICATION_ID,
+                        notification,
+                        android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE
+                );
             } else {
-                startForeground(NOTIFICATION_ID, n);
+                startForeground(NOTIFICATION_ID, notification);
             }
 
             if (!Settings.canDrawOverlays(this)) {
@@ -52,33 +75,40 @@ public class TaskbarService extends Service {
 
             wm = (WindowManager) getSystemService(WINDOW_SERVICE);
             buildBar();
-        } catch (RuntimeException e) {
+        } catch (Exception e) {
             stopSelf();
         }
     }
 
     private void buildBar() {
+        if (wm == null || !Settings.canDrawOverlays(this)) {
+            stopSelf();
+            return;
+        }
+
         final LinearLayout shell = new LinearLayout(this);
         shell.setOrientation(LinearLayout.VERTICAL);
-        shell.setGravity(Gravity.CENTER_VERTICAL);
-        shell.setPadding(dp(5), dp(8), dp(5), dp(8));
+        shell.setGravity(Gravity.CENTER_HORIZONTAL);
+        shell.setPadding(dp(4), dp(6), dp(4), dp(6));
+
+        GradientDrawable background = new GradientDrawable();
+        background.setColor(0xF21A1A24);
+        background.setCornerRadius(dp(24));
+        background.setStroke(dp(1), 0xFF6C63FF);
+        shell.setBackground(background);
+        shell.setElevation(dp(10));
 
         final ScrollView scroll = new ScrollView(this);
         scroll.setVerticalScrollBarEnabled(false);
         scroll.setFillViewport(true);
-        final LinearLayout appsRow = new LinearLayout(this);
-        appsRow.setOrientation(LinearLayout.VERTICAL);
-        appsRow.setGravity(Gravity.CENTER_VERTICAL);
-        scroll.addView(appsRow, new HorizontalScrollView.LayoutParams(
-                HorizontalScrollView.LayoutParams.WRAP_CONTENT,
-                HorizontalScrollView.LayoutParams.WRAP_CONTENT));
 
-        GradientDrawable bg = new GradientDrawable();
-        bg.setColor(0xF21A1A24);
-        bg.setCornerRadius(dp(28));
-        bg.setStroke(dp(1), 0xFF6C63FF);
-        shell.setBackground(bg);
-        shell.setElevation(dp(12));
+        final LinearLayout appsColumn = new LinearLayout(this);
+        appsColumn.setOrientation(LinearLayout.VERTICAL);
+        appsColumn.setGravity(Gravity.CENTER_HORIZONTAL);
+
+        scroll.addView(appsColumn, new ScrollView.LayoutParams(
+                dp(68), ScrollView.LayoutParams.WRAP_CONTENT
+        ));
 
         PackageManager pm = getPackageManager();
         List<ApplicationInfo> apps = new ArrayList<>();
@@ -86,81 +116,77 @@ public class TaskbarService extends Service {
         try {
             Intent launcher = new Intent(Intent.ACTION_MAIN);
             launcher.addCategory(Intent.CATEGORY_LAUNCHER);
-            List<ResolveInfo> resolved = pm.queryIntentActivities(launcher, PackageManager.MATCH_ALL);
+
+            List<ResolveInfo> resolved = pm.queryIntentActivities(
+                    launcher, PackageManager.MATCH_ALL
+            );
 
             for (ResolveInfo ri : resolved) {
-                ApplicationInfo ai = ri.activityInfo != null ? ri.activityInfo.applicationInfo : null;
-                if (ai != null && !getPackageName().equals(ai.packageName)
-                        && pm.getLaunchIntentForPackage(ai.packageName) != null) {
-                    boolean duplicate = false;
-                    for (ApplicationInfo old : apps) {
-                        if (old.packageName.equals(ai.packageName)) {
-                            duplicate = true;
-                            break;
-                        }
+                ApplicationInfo ai = ri.activityInfo != null
+                        ? ri.activityInfo.applicationInfo : null;
+
+                if (ai == null || getPackageName().equals(ai.packageName)) {
+                    continue;
+                }
+
+                if (pm.getLaunchIntentForPackage(ai.packageName) == null) {
+                    continue;
+                }
+
+                boolean duplicate = false;
+                for (ApplicationInfo old : apps) {
+                    if (old.packageName.equals(ai.packageName)) {
+                        duplicate = true;
+                        break;
                     }
-                    if (!duplicate) apps.add(ai);
+                }
+
+                if (!duplicate) {
+                    apps.add(ai);
                 }
             }
-        } catch (RuntimeException ignored) {}
+        } catch (Exception ignored) {
+        }
 
         apps.sort((a, b) -> {
             try {
                 String aa = String.valueOf(pm.getApplicationLabel(a));
                 String bb = String.valueOf(pm.getApplicationLabel(b));
                 return aa.compareToIgnoreCase(bb);
-            } catch (RuntimeException e) {
+            } catch (Exception e) {
                 return 0;
             }
         });
 
-        int count = apps.size();
-        for (int i = 0; i < count; i++) {
-            addAppCell(appsRow, pm, apps.get(i));
+        int maxVisible = 5;
+        for (int i = 0; i < apps.size(); i++) {
+            addAppCell(appsColumn, pm, apps.get(i));
         }
 
-        // Desktop-style taskbar: reserve exactly four app slots on screen.
-        // More apps remain available by horizontal swipe.
-        int screenWidth = getResources().getDisplayMetrics().widthPixels;
-        int fixedSide = dp(48 + 44); // home + hide area, approximately
-        int appAreaWidth = Math.max(dp(240), screenWidth - fixedSide - dp(18));
-        int slotWidth = Math.max(dp(58), appAreaWidth / 4);
-        appsRow.setMinimumWidth(slotWidth * Math.min(4, Math.max(1, count)));
+        LinearLayout.LayoutParams scrollParams = new LinearLayout.LayoutParams(
+                dp(72),
+                dp(360)
+        );
+        shell.addView(scroll, scrollParams);
 
-        shell.addView(scroll, new LinearLayout.LayoutParams(
-                appAreaWidth, LinearLayout.LayoutParams.WRAP_CONTENT));
-
-        if (count == 0) {
+        if (apps.isEmpty()) {
             TextView empty = makeButton("Apps");
-            empty.setTextSize(12);
-            shell.addView(empty);
+            shell.addView(empty, new LinearLayout.LayoutParams(
+                    dp(68), dp(44)
+            ));
         }
 
-        View sep = new View(this);
-        sep.setBackgroundColor(0xFF555562);
-        shell.addView(sep, new LinearLayout.LayoutParams(dp(1), dp(34)));
+        addDivider(shell);
 
         TextView home = makeButton("⌂");
-        home.setTextSize(23);
-        home.setOnClickListener(v -> {
-            try {
-                Intent in = new Intent(Intent.ACTION_MAIN);
-                in.addCategory(Intent.CATEGORY_HOME);
-                in.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                startActivity(in);
-            } catch (RuntimeException ignored) {}
-        });
-        shell.addView(home);
+        home.setTextSize(22);
+        home.setOnClickListener(v -> goHome());
+        shell.addView(home, new LinearLayout.LayoutParams(dp(68), dp(44)));
 
-        TextView hide = makeButton("⌄");
-        hide.setTextSize(22);
-        hide.setOnClickListener(v -> {
-            try {
-                if (bar != null && wm != null) wm.removeView(bar);
-            } catch (RuntimeException ignored) {}
-            bar = null;
-        });
-        shell.addView(hide);
+        TextView hide = makeButton("×");
+        hide.setTextSize(20);
+        hide.setOnClickListener(v -> removeBar());
+        shell.addView(hide, new LinearLayout.LayoutParams(dp(68), dp(44)));
 
         bar = shell;
 
@@ -169,132 +195,189 @@ public class TaskbarService extends Service {
                 : WindowManager.LayoutParams.TYPE_PHONE;
 
         WindowManager.LayoutParams lp = new WindowManager.LayoutParams(
-                WindowManager.LayoutParams.MATCH_PARENT,
+                dp(80),
                 WindowManager.LayoutParams.WRAP_CONTENT,
                 type,
                 WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
                         | WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
-                PixelFormat.TRANSLUCENT);
+                PixelFormat.TRANSLUCENT
+        );
 
-        lp.gravity = Gravity.BOTTOM;
-        lp.y = dp(6);
+        lp.gravity = Gravity.RIGHT | Gravity.CENTER_VERTICAL;
+        lp.x = dp(6);
 
         try {
             wm.addView(bar, lp);
-        } catch (RuntimeException e) {
+        } catch (Exception e) {
             bar = null;
             stopSelf();
         }
     }
 
-    private void addAppCell(LinearLayout shell, PackageManager pm, ApplicationInfo ai) {
+    private void addAppCell(
+            LinearLayout parent,
+            PackageManager pm,
+            ApplicationInfo ai
+    ) {
         try {
             LinearLayout cell = new LinearLayout(this);
-            cell.setGravity(Gravity.CENTER);
             cell.setOrientation(LinearLayout.VERTICAL);
-            cell.setPadding(dp(3), dp(2), dp(3), dp(2));
+            cell.setGravity(Gravity.CENTER);
+            cell.setPadding(dp(2), dp(2), dp(2), dp(2));
+            cell.setContentDescription(pm.getApplicationLabel(ai));
 
             ImageView icon = new ImageView(this);
             icon.setImageDrawable(pm.getApplicationIcon(ai));
             icon.setScaleType(ImageView.ScaleType.FIT_CENTER);
-            cell.addView(icon, new LinearLayout.LayoutParams(dp(34), dp(34)));
+            cell.addView(icon, new LinearLayout.LayoutParams(dp(36), dp(36)));
 
             TextView label = new TextView(this);
             label.setText(pm.getApplicationLabel(ai));
             label.setTextColor(Color.WHITE);
             label.setTextSize(8);
+            label.setGravity(Gravity.CENTER);
             label.setMaxLines(1);
             label.setEllipsize(android.text.TextUtils.TruncateAt.END);
-            cell.addView(label, new LinearLayout.LayoutParams(dp(52), dp(17)));
+            cell.addView(label, new LinearLayout.LayoutParams(dp(62), dp(16)));
 
-            cell.setContentDescription(pm.getApplicationLabel(ai));
-            cell.setOnClickListener(v -> {
-                try {
-                    Intent in = pm.getLaunchIntentForPackage(ai.packageName);
-                    if (in != null) {
-                        // Keep each launch as a separate task so the Taskbar can switch
-                        // between several apps without replacing the previous task.
-                        in.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK
-                                | Intent.FLAG_ACTIVITY_MULTIPLE_TASK
-                                | Intent.FLAG_ACTIVITY_NEW_DOCUMENT
-                                | Intent.FLAG_ACTIVITY_LAUNCH_ADJACENT);
+            cell.setOnClickListener(v -> launchApp(ai.packageName));
 
-                        int w = getResources().getDisplayMetrics().widthPixels;
-                        int h = getResources().getDisplayMetrics().heightPixels;
-                        int top = dp(8);
-                        int bottom = Math.max(top + dp(300), h - dp(64));
-                        int gap = dp(4);
-                        int usableH = Math.max(dp(280), bottom - top);
-                        int slot = nextWindowSlot++ % 4;
-                        int col = slot & 1;
-                        int row = slot >> 1;
-                        int left = col == 0 ? 0 : w / 2;
-                        int right = col == 0 ? (w / 2) : w;
-                        int topSlot = top + (row * usableH / 2);
-                        int bottomSlot = top + ((row + 1) * usableH / 2);
-                        Rect bounds = new Rect(left + gap, topSlot + gap,
-                                right - gap, bottomSlot - gap);
-
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                            ActivityOptions options = ActivityOptions.makeBasic();
-                            options.setLaunchBounds(bounds);
-                            startActivity(in, options.toBundle());
-                        } else {
-                            startActivity(in);
-                        }
-                    }
-                } catch (RuntimeException ignored) {}
-            });
-            int screenWidth = getResources().getDisplayMetrics().widthPixels;
-            int appAreaWidth = Math.max(dp(240), screenWidth - dp(48 + 44 + 18));
-            int slotWidth = Math.max(dp(58), appAreaWidth / 4);
-            LinearLayout.LayoutParams cellLp = new LinearLayout.LayoutParams(dp(68), dp(58));
-            cellLp.gravity = Gravity.CENTER_VERTICAL;
-            shell.addView(cell, cellLp);
-        } catch (RuntimeException ignored) {}
+            parent.addView(cell, new LinearLayout.LayoutParams(
+                    dp(68), dp(56)
+            ));
+        } catch (Exception ignored) {
+        }
     }
 
-    private TextView makeButton(String s) {
-        TextView t = new TextView(this);
-        t.setText(s);
-        t.setTextColor(Color.WHITE);
-        t.setGravity(Gravity.CENTER);
-        t.setTextSize(17);
-        t.setPadding(dp(10), dp(4), dp(10), dp(4));
-        return t;
+    private void launchApp(String packageName) {
+        try {
+            PackageManager pm = getPackageManager();
+            Intent intent = pm.getLaunchIntentForPackage(packageName);
+
+            if (intent == null) {
+                return;
+            }
+
+            intent.addFlags(
+                    Intent.FLAG_ACTIVITY_NEW_TASK
+                            | Intent.FLAG_ACTIVITY_MULTIPLE_TASK
+                            | Intent.FLAG_ACTIVITY_NEW_DOCUMENT
+                            | Intent.FLAG_ACTIVITY_LAUNCH_ADJACENT
+            );
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                int w = getResources().getDisplayMetrics().widthPixels;
+                int h = getResources().getDisplayMetrics().heightPixels;
+
+                int margin = dp(6);
+                int usableTop = dp(8);
+                int usableBottom = Math.max(usableTop + dp(400), h - dp(8));
+                int halfW = Math.max(dp(200), w / 2);
+                int halfH = Math.max(dp(300), (usableBottom - usableTop) / 2);
+
+                int slot = nextWindowSlot++ % 4;
+                int col = slot % 2;
+                int row = slot / 2;
+
+                int left = col == 0 ? margin : halfW + margin;
+                int right = col == 0 ? halfW - margin : w - margin;
+                int top = usableTop + (row * halfH) + margin;
+                int bottom = Math.min(usableBottom - margin, usableTop + ((row + 1) * halfH) - margin);
+
+                Rect bounds = new Rect(left, top, right, Math.max(top + dp(240), bottom));
+
+                ActivityOptions options = ActivityOptions.makeBasic();
+                options.setLaunchBounds(bounds);
+                startActivity(intent, options.toBundle());
+            } else {
+                startActivity(intent);
+            }
+        } catch (Exception ignored) {
+            try {
+                Intent fallback = getPackageManager().getLaunchIntentForPackage(packageName);
+                if (fallback != null) {
+                    fallback.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                    startActivity(fallback);
+                }
+            } catch (Exception ignoredAgain) {
+            }
+        }
+    }
+
+    private void addDivider(LinearLayout shell) {
+        View divider = new View(this);
+        divider.setBackgroundColor(0xFF555562);
+        shell.addView(divider, new LinearLayout.LayoutParams(
+                dp(48), dp(1)
+        ));
+    }
+
+    private TextView makeButton(String text) {
+        TextView button = new TextView(this);
+        button.setText(text);
+        button.setTextColor(Color.WHITE);
+        button.setGravity(Gravity.CENTER);
+        button.setTextSize(17);
+        button.setPadding(dp(4), dp(4), dp(4), dp(4));
+        return button;
+    }
+
+    private void goHome() {
+        try {
+            Intent intent = new Intent(Intent.ACTION_MAIN);
+            intent.addCategory(Intent.CATEGORY_HOME);
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            startActivity(intent);
+        } catch (Exception ignored) {
+        }
+    }
+
+    private void removeBar() {
+        try {
+            if (bar != null && wm != null) {
+                wm.removeView(bar);
+            }
+        } catch (Exception ignored) {
+        }
+        bar = null;
     }
 
     private void createChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            NotificationChannel c = new NotificationChannel(
-                    CHANNEL, "Taskbar", NotificationManager.IMPORTANCE_LOW);
-            NotificationManager nm =
+            NotificationChannel channel = new NotificationChannel(
+                    CHANNEL,
+                    "HyperDock",
+                    NotificationManager.IMPORTANCE_LOW
+            );
+
+            NotificationManager manager =
                     (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
-            if (nm != null) nm.createNotificationChannel(c);
+
+            if (manager != null) {
+                manager.createNotificationChannel(channel);
+            }
         }
     }
 
-    @Override public int onStartCommand(Intent intent, int flags, int startId) {
+    @Override
+    public int onStartCommand(Intent intent, int flags, int startId) {
         if (bar == null && Settings.canDrawOverlays(this)) {
-            try { buildBar(); } catch (RuntimeException ignored) {}
+            try {
+                buildBar();
+            } catch (Exception ignored) {
+            }
         }
         return START_STICKY;
     }
 
-    @Override public void onTaskRemoved(Intent rootIntent) {
-        // Keep the foreground service alive when the app's recent-task card is swiped away.
-        super.onTaskRemoved(rootIntent);
-    }
-
-    @Override public void onDestroy() {
-        if (wm != null && bar != null) {
-            try { wm.removeView(bar); } catch (RuntimeException ignored) {}
-        }
-        bar = null;
+    @Override
+    public void onDestroy() {
+        removeBar();
         super.onDestroy();
     }
 
-    @Override public IBinder onBind(Intent intent) {
+    @Override
+    public IBinder onBind(Intent intent) {
         return null;
     }
 }
