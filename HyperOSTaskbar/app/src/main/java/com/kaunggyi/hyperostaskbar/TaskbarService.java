@@ -31,8 +31,8 @@ public class TaskbarService extends Service {
             createChannel();
 
             Notification n = new Notification.Builder(this, CHANNEL)
-                    .setContentTitle("HyperOS Taskbar")
-                    .setContentText("Taskbar is running")
+                    .setContentTitle("HyperDock")
+                    .setContentText("HyperDock is running")
                     .setSmallIcon(android.R.drawable.ic_menu_view)
                     .setOngoing(true)
                     .setCategory(Notification.CATEGORY_SERVICE)
