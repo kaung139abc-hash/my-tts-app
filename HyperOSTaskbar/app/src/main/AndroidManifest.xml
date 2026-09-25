@@ -19,6 +19,11 @@
         android:allowBackup="false"
         android:supportsRtl="true">
         <activity
+            android:name=".HyperDockSettingsActivity"
+            android:exported="false"
+            android:resizeableActivity="true" />
+
+        <activity
             android:name=".MainActivity"
             android:exported="true"
             android:resizeableActivity="true">
