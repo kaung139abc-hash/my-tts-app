@@ -1,29 +1,35 @@
 package com.kaunggyi.hyperostaskbar;
 
-import android.app.Service;
-import android.content.Intent;
+import android.app.*;
+import android.content.*;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
 import android.graphics.Color;
 import android.graphics.PixelFormat;
 import android.graphics.drawable.GradientDrawable;
-import android.os.IBinder;
+import android.os.*;
 import android.provider.Settings;
-import android.view.Gravity;
-import android.view.View;
-import android.view.WindowManager;
-import android.widget.LinearLayout;
-import android.widget.TextView;
-import java.util.ArrayList;
-import java.util.List;
+import android.view.*;
+import android.widget.*;
+import java.util.*;
 
 public class TaskbarService extends Service {
     private WindowManager wm;
     private View bar;
+    private static final String CHANNEL = "taskbar";
 
     @Override public void onCreate() {
         super.onCreate();
-        if (!Settings.canDrawOverlays(this)) return;
+        createChannel();
+        Notification n = new Notification.Builder(this, CHANNEL)
+                .setContentTitle("HyperOS Taskbar")
+                .setContentText("Taskbar is running")
+                .setSmallIcon(android.R.drawable.ic_menu_view)
+                .setOngoing(true)
+                .build();
+        startForeground(1001, n);
+
+        if (!Settings.canDrawOverlays(this)) { stopSelf(); return; }
 
         wm = (WindowManager)getSystemService(WINDOW_SERVICE);
         LinearLayout row = new LinearLayout(this);
@@ -69,6 +75,13 @@ public class TaskbarService extends Service {
         lp.gravity = Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL;
         lp.y = 24;
         wm.addView(bar, lp);
+    }
+
+    private void createChannel() {
+        if (Build.VERSION.SDK_INT >= 26) {
+            NotificationChannel c = new NotificationChannel(CHANNEL, "Taskbar", NotificationManager.IMPORTANCE_LOW);
+            ((NotificationManager)getSystemService(NOTIFICATION_SERVICE)).createNotificationChannel(c);
+        }
     }
 
     private TextView button(String s) {
