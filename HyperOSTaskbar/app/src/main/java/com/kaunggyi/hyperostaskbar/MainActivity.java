@@ -27,7 +27,7 @@ public class MainActivity extends Activity {
         }
 
         // HyperDock is a taskbar, not a full-screen launcher.
-        // Close the Activity so the taskbar remains floating on the right edge.
+        // Close the Activity so the taskbar remains floating on the left edge.
         finishAndRemoveTask();
     }
 
@@ -56,7 +56,7 @@ public class MainActivity extends Activity {
         super.onResume();
 
         // After the user grants overlay permission, immediately turn
-        // HyperDock into the floating right-side taskbar.
+        // HyperDock into the floating left-side taskbar.
         if (!isFinishing() && Settings.canDrawOverlays(this)) {
             startTaskbar();
         }
@@ -80,7 +80,7 @@ public class MainActivity extends Activity {
         ));
 
         TextView info = new TextView(this);
-        info.setText("Right-side floating taskbar\n\nAllow "Display over other apps" once.\nAfter that, opening HyperDock will show only the taskbar.");
+        info.setText("Left-side floating taskbar\n\nAllow \"Display over other apps\" once.\nAfter that, opening HyperDock will show only the taskbar.");
         info.setTextColor(0xFFD7D7E0);
         info.setTextSize(16);
         info.setGravity(Gravity.CENTER);
