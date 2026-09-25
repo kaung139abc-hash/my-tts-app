@@ -30,7 +30,7 @@ public class MainActivity extends Activity {
         box.setPadding(48, 48, 48, 48);
 
         TextView title = new TextView(this);
-        title.setText("HyperOS Taskbar\n\nFloating taskbar for quick app launching");
+        title.setText("HyperDock\n\nFloating taskbar for quick app launching");
         title.setTextSize(22);
         box.addView(title);
 
@@ -44,7 +44,7 @@ public class MainActivity extends Activity {
         box.addView(permission);
 
         Button start = new Button(this);
-        start.setText("Start Taskbar");
+        start.setText("Start HyperDock");
         start.setOnClickListener(v -> {
             if (Settings.canDrawOverlays(this)) {
                 startTaskbar();
@@ -56,7 +56,7 @@ public class MainActivity extends Activity {
         box.addView(start);
 
         Button multi = new Button(this);
-        multi.setText("4-App Floating Mode");
+        multi.setText("4-App Mode");
         multi.setTextSize(16);
         multi.setOnClickListener(v -> {
             if (!Settings.canDrawOverlays(this)) {
@@ -66,7 +66,7 @@ public class MainActivity extends Activity {
             }
             startTaskbar();
             android.widget.Toast.makeText(this,
-                    "4-App Floating Mode started. Use the side Taskbar to open apps.",
+                    "4-App Mode started. Use the side Taskbar to open apps.",
                     android.widget.Toast.LENGTH_LONG).show();
         });
         box.addView(multi);
@@ -79,7 +79,7 @@ public class MainActivity extends Activity {
         box.addView(accessibility);
 
         Button stop = new Button(this);
-        stop.setText("Stop Taskbar");
+        stop.setText("Stop HyperDock");
         stop.setOnClickListener(v -> stopService(new Intent(this, TaskbarService.class)));
         box.addView(stop);
 
