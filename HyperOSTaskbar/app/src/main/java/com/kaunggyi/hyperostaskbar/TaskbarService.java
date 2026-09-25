@@ -214,7 +214,8 @@ public class TaskbarService extends Service {
                     if (in != null) {
                         in.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK
                                 | Intent.FLAG_ACTIVITY_MULTIPLE_TASK
-                                | Intent.FLAG_ACTIVITY_NEW_DOCUMENT);
+                                | Intent.FLAG_ACTIVITY_NEW_DOCUMENT
+                                | Intent.FLAG_ACTIVITY_LAUNCH_ADJACENT);
 
                         int w = getResources().getDisplayMetrics().widthPixels;
                         int h = getResources().getDisplayMetrics().heightPixels;
