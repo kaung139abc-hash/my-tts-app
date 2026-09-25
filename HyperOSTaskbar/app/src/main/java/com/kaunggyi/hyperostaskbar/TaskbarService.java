@@ -62,7 +62,7 @@ public class TaskbarService extends Service {
 
         final HorizontalScrollView scroll = new HorizontalScrollView(this);
         scroll.setHorizontalScrollBarEnabled(false);
-        scroll.setFillViewport(false);
+        scroll.setFillViewport(true);
         final LinearLayout appsRow = new LinearLayout(this);
         appsRow.setOrientation(LinearLayout.HORIZONTAL);
         appsRow.setGravity(Gravity.CENTER_VERTICAL);
@@ -116,8 +116,16 @@ public class TaskbarService extends Service {
             addAppCell(appsRow, pm, apps.get(i));
         }
 
+        // Desktop-style taskbar: reserve exactly four app slots on screen.
+        // More apps remain available by horizontal swipe.
+        int screenWidth = getResources().getDisplayMetrics().widthPixels;
+        int fixedSide = dp(48 + 44); // home + hide area, approximately
+        int appAreaWidth = Math.max(dp(240), screenWidth - fixedSide - dp(18));
+        int slotWidth = Math.max(dp(58), appAreaWidth / 4);
+        appsRow.setMinimumWidth(slotWidth * Math.min(4, Math.max(1, count)));
+
         shell.addView(scroll, new LinearLayout.LayoutParams(
-                0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+                appAreaWidth, LinearLayout.LayoutParams.WRAP_CONTENT));
 
         if (count == 0) {
             TextView empty = makeButton("Apps");
@@ -181,7 +189,7 @@ public class TaskbarService extends Service {
             LinearLayout cell = new LinearLayout(this);
             cell.setGravity(Gravity.CENTER);
             cell.setOrientation(LinearLayout.VERTICAL);
-            cell.setPadding(dp(5), dp(2), dp(5), dp(2));
+            cell.setPadding(dp(3), dp(2), dp(3), dp(2));
 
             ImageView icon = new ImageView(this);
             icon.setImageDrawable(pm.getApplicationIcon(ai));
@@ -194,7 +202,7 @@ public class TaskbarService extends Service {
             label.setTextSize(8);
             label.setMaxLines(1);
             label.setEllipsize(android.text.TextUtils.TruncateAt.END);
-            cell.addView(label, new LinearLayout.LayoutParams(dp(54), dp(18)));
+            cell.addView(label, new LinearLayout.LayoutParams(dp(52), dp(17)));
 
             cell.setContentDescription(pm.getApplicationLabel(ai));
             cell.setOnClickListener(v -> {
@@ -206,7 +214,12 @@ public class TaskbarService extends Service {
                     }
                 } catch (RuntimeException ignored) {}
             });
-            shell.addView(cell);
+            int screenWidth = getResources().getDisplayMetrics().widthPixels;
+            int appAreaWidth = Math.max(dp(240), screenWidth - dp(48 + 44 + 18));
+            int slotWidth = Math.max(dp(58), appAreaWidth / 4);
+            LinearLayout.LayoutParams cellLp = new LinearLayout.LayoutParams(slotWidth, dp(54));
+            cellLp.gravity = Gravity.CENTER_VERTICAL;
+            shell.addView(cell, cellLp);
         } catch (RuntimeException ignored) {}
     }
 
