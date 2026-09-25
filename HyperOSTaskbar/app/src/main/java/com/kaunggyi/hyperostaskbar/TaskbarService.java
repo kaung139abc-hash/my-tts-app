@@ -15,6 +15,7 @@ import java.util.*;
 public class TaskbarService extends Service {
     private static final String CHANNEL = "taskbar";
     private static final int NOTIFICATION_ID = 1001;
+    private static final int MAX_APPS = 8;
     private WindowManager wm;
     private View bar;
 
@@ -24,19 +25,20 @@ public class TaskbarService extends Service {
 
     @Override public void onCreate() {
         super.onCreate();
-
         try {
             createChannel();
 
             Notification n = new Notification.Builder(this, CHANNEL)
                     .setContentTitle("HyperOS Taskbar")
-                    .setContentText("Floating launcher is active")
+                    .setContentText("Taskbar is running")
                     .setSmallIcon(android.R.drawable.ic_menu_view)
                     .setOngoing(true)
+                    .setCategory(Notification.CATEGORY_SERVICE)
                     .build();
 
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                startForeground(NOTIFICATION_ID, n, ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE);
+                startForeground(NOTIFICATION_ID, n,
+                        ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE);
             } else {
                 startForeground(NOTIFICATION_ID, n);
             }
@@ -48,9 +50,7 @@ public class TaskbarService extends Service {
 
             wm = (WindowManager) getSystemService(WINDOW_SERVICE);
             buildBar();
-        } catch (SecurityException e) {
-            stopSelf();
-        } catch (RuntimeException e) {
+        } catch (SecurityException | RuntimeException e) {
             stopSelf();
         }
     }
@@ -58,8 +58,8 @@ public class TaskbarService extends Service {
     private void buildBar() {
         final LinearLayout shell = new LinearLayout(this);
         shell.setOrientation(LinearLayout.HORIZONTAL);
-        shell.setGravity(Gravity.CENTER);
-        shell.setPadding(dp(10), dp(8), dp(10), dp(8));
+        shell.setGravity(Gravity.CENTER_VERTICAL);
+        shell.setPadding(dp(8), dp(5), dp(8), dp(5));
 
         GradientDrawable bg = new GradientDrawable();
         bg.setColor(0xF21A1A24);
@@ -72,25 +72,45 @@ public class TaskbarService extends Service {
         List<ApplicationInfo> apps = new ArrayList<>();
 
         try {
-            for (ApplicationInfo ai : pm.getInstalledApplications(PackageManager.GET_META_DATA)) {
-                if (!getPackageName().equals(ai.packageName)
+            Intent launcher = new Intent(Intent.ACTION_MAIN);
+            launcher.addCategory(Intent.CATEGORY_LAUNCHER);
+            List<ResolveInfo> resolved = pm.queryIntentActivities(launcher, PackageManager.MATCH_ALL);
+
+            for (ResolveInfo ri : resolved) {
+                ApplicationInfo ai = ri.activityInfo != null ? ri.activityInfo.applicationInfo : null;
+                if (ai != null && !getPackageName().equals(ai.packageName)
                         && pm.getLaunchIntentForPackage(ai.packageName) != null) {
-                    apps.add(ai);
+                    boolean duplicate = false;
+                    for (ApplicationInfo old : apps) {
+                        if (old.packageName.equals(ai.packageName)) {
+                            duplicate = true;
+                            break;
+                        }
+                    }
+                    if (!duplicate) apps.add(ai);
                 }
             }
-        } catch (RuntimeException ignored) {
-            // Keep the taskbar usable even if an OEM PackageManager call fails.
-        }
+        } catch (RuntimeException ignored) {}
 
         apps.sort((a, b) -> {
-            String aa = String.valueOf(pm.getApplicationLabel(a));
-            String bb = String.valueOf(pm.getApplicationLabel(b));
-            return aa.compareToIgnoreCase(bb);
+            try {
+                String aa = String.valueOf(pm.getApplicationLabel(a));
+                String bb = String.valueOf(pm.getApplicationLabel(b));
+                return aa.compareToIgnoreCase(bb);
+            } catch (RuntimeException e) {
+                return 0;
+            }
         });
 
-        int count = Math.min(4, apps.size());
+        int count = Math.min(MAX_APPS, apps.size());
         for (int i = 0; i < count; i++) {
             addAppCell(shell, pm, apps.get(i));
+        }
+
+        if (count == 0) {
+            TextView empty = makeButton("Apps");
+            empty.setTextSize(12);
+            shell.addView(empty);
         }
 
         View sep = new View(this);
@@ -100,16 +120,23 @@ public class TaskbarService extends Service {
         TextView home = makeButton("⌂");
         home.setTextSize(23);
         home.setOnClickListener(v -> {
-            Intent in = new Intent(Intent.ACTION_MAIN);
-            in.addCategory(Intent.CATEGORY_HOME);
-            in.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-            startActivity(in);
+            try {
+                Intent in = new Intent(Intent.ACTION_MAIN);
+                in.addCategory(Intent.CATEGORY_HOME);
+                in.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                startActivity(in);
+            } catch (RuntimeException ignored) {}
         });
         shell.addView(home);
 
         TextView hide = makeButton("⌄");
         hide.setTextSize(22);
-        hide.setOnClickListener(v -> stopSelf());
+        hide.setOnClickListener(v -> {
+            try {
+                if (bar != null && wm != null) wm.removeView(bar);
+            } catch (RuntimeException ignored) {}
+            bar = null;
+        });
         shell.addView(hide);
 
         bar = shell;
@@ -119,15 +146,15 @@ public class TaskbarService extends Service {
                 : WindowManager.LayoutParams.TYPE_PHONE;
 
         WindowManager.LayoutParams lp = new WindowManager.LayoutParams(
-                WindowManager.LayoutParams.WRAP_CONTENT,
+                WindowManager.LayoutParams.MATCH_PARENT,
                 WindowManager.LayoutParams.WRAP_CONTENT,
                 type,
                 WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
                         | WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
                 PixelFormat.TRANSLUCENT);
 
-        lp.gravity = Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL;
-        lp.y = dp(22);
+        lp.gravity = Gravity.BOTTOM;
+        lp.y = dp(6);
 
         try {
             wm.addView(bar, lp);
@@ -142,19 +169,20 @@ public class TaskbarService extends Service {
             LinearLayout cell = new LinearLayout(this);
             cell.setGravity(Gravity.CENTER);
             cell.setOrientation(LinearLayout.VERTICAL);
-            cell.setPadding(dp(7), dp(2), dp(7), dp(2));
+            cell.setPadding(dp(5), dp(2), dp(5), dp(2));
 
             ImageView icon = new ImageView(this);
             icon.setImageDrawable(pm.getApplicationIcon(ai));
             icon.setScaleType(ImageView.ScaleType.FIT_CENTER);
-            cell.addView(icon, new LinearLayout.LayoutParams(dp(30), dp(30)));
+            cell.addView(icon, new LinearLayout.LayoutParams(dp(34), dp(34)));
 
             TextView label = new TextView(this);
             label.setText(pm.getApplicationLabel(ai));
             label.setTextColor(Color.WHITE);
-            label.setTextSize(9);
+            label.setTextSize(8);
             label.setMaxLines(1);
-            cell.addView(label);
+            label.setEllipsize(android.text.TextUtils.TruncateAt.END);
+            cell.addView(label, new LinearLayout.LayoutParams(dp(54), dp(18)));
 
             cell.setContentDescription(pm.getApplicationLabel(ai));
             cell.setOnClickListener(v -> {
@@ -166,11 +194,8 @@ public class TaskbarService extends Service {
                     }
                 } catch (RuntimeException ignored) {}
             });
-
             shell.addView(cell);
-        } catch (RuntimeException ignored) {
-            // Skip a broken app icon instead of crashing the whole service.
-        }
+        } catch (RuntimeException ignored) {}
     }
 
     private TextView makeButton(String s) {
@@ -179,7 +204,7 @@ public class TaskbarService extends Service {
         t.setTextColor(Color.WHITE);
         t.setGravity(Gravity.CENTER);
         t.setTextSize(17);
-        t.setPadding(dp(12), dp(4), dp(12), dp(4));
+        t.setPadding(dp(10), dp(4), dp(10), dp(4));
         return t;
     }
 
@@ -194,7 +219,15 @@ public class TaskbarService extends Service {
     }
 
     @Override public int onStartCommand(Intent intent, int flags, int startId) {
+        if (bar == null && Settings.canDrawOverlays(this)) {
+            try { buildBar(); } catch (RuntimeException ignored) {}
+        }
         return START_STICKY;
+    }
+
+    @Override public void onTaskRemoved(Intent rootIntent) {
+        // Keep the foreground service alive when the app's recent-task card is swiped away.
+        super.onTaskRemoved(rootIntent);
     }
 
     @Override public void onDestroy() {
