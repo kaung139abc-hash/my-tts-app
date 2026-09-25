@@ -280,7 +280,15 @@ public class TaskbarService extends Service {
 
                 ActivityOptions options = ActivityOptions.makeBasic();
                 options.setLaunchBounds(bounds);
-                startActivity(intent, options.toBundle());
+
+                // Request HyperOS/Android freeform windowing when the device supports it.
+                // The system may ignore this on devices that do not allow freeform windows.
+                android.os.Bundle launchOptions = options.toBundle();
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                    launchOptions.putInt("android.activity.launchWindowingMode", 5);
+                }
+
+                startActivity(intent, launchOptions);
             } else {
                 startActivity(intent);
             }
