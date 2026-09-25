@@ -63,11 +63,11 @@ public class TaskbarService extends Service {
         shell.setGravity(Gravity.CENTER_VERTICAL);
         shell.setPadding(dp(5), dp(8), dp(5), dp(8));
 
-        final HorizontalScrollView scroll = new HorizontalScrollView(this);
-        scroll.setHorizontalScrollBarEnabled(false);
+        final ScrollView scroll = new ScrollView(this);
+        scroll.setVerticalScrollBarEnabled(false);
         scroll.setFillViewport(true);
         final LinearLayout appsRow = new LinearLayout(this);
-        appsRow.setOrientation(LinearLayout.HORIZONTAL);
+        appsRow.setOrientation(LinearLayout.VERTICAL);
         appsRow.setGravity(Gravity.CENTER_VERTICAL);
         scroll.addView(appsRow, new HorizontalScrollView.LayoutParams(
                 HorizontalScrollView.LayoutParams.WRAP_CONTENT,
@@ -248,7 +248,7 @@ public class TaskbarService extends Service {
             int screenWidth = getResources().getDisplayMetrics().widthPixels;
             int appAreaWidth = Math.max(dp(240), screenWidth - dp(48 + 44 + 18));
             int slotWidth = Math.max(dp(58), appAreaWidth / 4);
-            LinearLayout.LayoutParams cellLp = new LinearLayout.LayoutParams(slotWidth, dp(54));
+            LinearLayout.LayoutParams cellLp = new LinearLayout.LayoutParams(dp(68), dp(58));
             cellLp.gravity = Gravity.CENTER_VERTICAL;
             shell.addView(cell, cellLp);
         } catch (RuntimeException ignored) {}
