@@ -1,4 +1,4 @@
 <resources>
-    <string name="app_name">HyperOS Taskbar</string>
-    <string name="accessibility_description">Allows the Taskbar to assist with supported system window controls.</string>
+    <string name="app_name">HyperDock</string>
+    <string name="accessibility_description">Allows HyperDock to assist with supported system window controls.</string>
 </resources>
