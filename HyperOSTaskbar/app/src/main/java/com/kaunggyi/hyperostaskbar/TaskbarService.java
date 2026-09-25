@@ -210,7 +210,14 @@ public class TaskbarService extends Service {
                 opts.putInt("android.activity.launchWindowingMode", 5);
             }
 
-            startActivity(intent, opts);
+            if (getSharedPreferences("hyperdock", MODE_PRIVATE).getBoolean("freeform", true)
+                    && FreeformEngine.canUse(this)) {
+                FreeformEngine.prepare(this);
+                try { Thread.sleep(Build.VERSION.SDK_INT >= 30 ? 250 : 120); } catch (InterruptedException ignored) {}
+                startActivity(intent, FreeformEngine.options(this, bounds));
+            } else {
+                startActivity(intent, opts);
+            }
         } catch (Exception first) {
             try {
                 Intent fallback = getPackageManager().getLaunchIntentForPackage(packageName);
