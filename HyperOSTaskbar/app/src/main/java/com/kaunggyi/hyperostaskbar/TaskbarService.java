@@ -50,7 +50,7 @@ public class TaskbarService extends Service {
 
             wm = (WindowManager) getSystemService(WINDOW_SERVICE);
             buildBar();
-        } catch (SecurityException | RuntimeException e) {
+        } catch (RuntimeException e) {
             stopSelf();
         }
     }
