@@ -58,15 +58,9 @@ public class TaskbarService extends Service {
                     .setCategory(Notification.CATEGORY_SERVICE)
                     .build();
 
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                startForeground(
-                        NOTIFICATION_ID,
-                        notification,
-                        android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE
-                );
-            } else {
-                startForeground(NOTIFICATION_ID, notification);
-            }
+            // Let Android use the service type declared in AndroidManifest.xml.
+            // This avoids a runtime foreground-service type mismatch on some Android/HyperOS builds.
+            startForeground(NOTIFICATION_ID, notification);
 
             if (!Settings.canDrawOverlays(this)) {
                 stopSelf();
