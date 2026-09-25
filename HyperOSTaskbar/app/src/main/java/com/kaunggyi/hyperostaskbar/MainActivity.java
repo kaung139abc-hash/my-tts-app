@@ -13,75 +13,84 @@ import android.widget.LinearLayout;
 import android.widget.TextView;
 
 public class MainActivity extends Activity {
+    private boolean launched = false;
+
     private void startTaskbar() {
+        if (launched) return;
+        launched = true;
+
         Intent intent = new Intent(this, TaskbarService.class);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             startForegroundService(intent);
         } else {
             startService(intent);
         }
+
+        // HyperDock is a taskbar, not a full-screen launcher.
+        // Close the Activity so the taskbar remains floating on the right edge.
+        finishAndRemoveTask();
     }
 
-    @Override public void onCreate(Bundle b) {
+    private void openOverlaySettings() {
+        Intent i = new Intent(
+                Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                Uri.parse("package:" + getPackageName())
+        );
+        startActivity(i);
+    }
+
+    @Override
+    protected void onCreate(Bundle b) {
         super.onCreate(b);
 
+        if (Settings.canDrawOverlays(this)) {
+            startTaskbar();
+            return;
+        }
+
+        showPermissionScreen();
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+
+        // After the user grants overlay permission, immediately turn
+        // HyperDock into the floating right-side taskbar.
+        if (!isFinishing() && Settings.canDrawOverlays(this)) {
+            startTaskbar();
+        }
+    }
+
+    private void showPermissionScreen() {
         LinearLayout box = new LinearLayout(this);
         box.setOrientation(LinearLayout.VERTICAL);
+        box.setGravity(Gravity.CENTER);
         box.setPadding(48, 48, 48, 48);
+        box.setBackgroundColor(0xFF15151B);
 
         TextView title = new TextView(this);
-        title.setText("HyperDock\n\nFloating taskbar for quick app launching");
-        title.setTextSize(22);
-        box.addView(title);
+        title.setText("HyperDock");
+        title.setTextColor(Color.WHITE);
+        title.setTextSize(30);
+        title.setGravity(Gravity.CENTER);
+        box.addView(title, new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+        ));
+
+        TextView info = new TextView(this);
+        info.setText("Right-side floating taskbar\n\nAllow "Display over other apps" once.\nAfter that, opening HyperDock will show only the taskbar.");
+        info.setTextColor(0xFFD7D7E0);
+        info.setTextSize(16);
+        info.setGravity(Gravity.CENTER);
+        info.setPadding(0, 24, 0, 24);
+        box.addView(info);
 
         Button permission = new Button(this);
         permission.setText("Allow Display over other apps");
-        permission.setOnClickListener(v -> {
-            Intent i = new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                    Uri.parse("package:" + getPackageName()));
-            startActivity(i);
-        });
+        permission.setOnClickListener(v -> openOverlaySettings());
         box.addView(permission);
-
-        Button start = new Button(this);
-        start.setText("Start HyperDock");
-        start.setOnClickListener(v -> {
-            if (Settings.canDrawOverlays(this)) {
-                startTaskbar();
-            } else {
-                startActivity(new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                        Uri.parse("package:" + getPackageName())));
-            }
-        });
-        box.addView(start);
-
-        Button multi = new Button(this);
-        multi.setText("4-App Mode");
-        multi.setTextSize(16);
-        multi.setOnClickListener(v -> {
-            if (!Settings.canDrawOverlays(this)) {
-                startActivity(new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                        Uri.parse("package:" + getPackageName())));
-                return;
-            }
-            startTaskbar();
-            android.widget.Toast.makeText(this,
-                    "4-App Mode started. Use the side Taskbar to open apps.",
-                    android.widget.Toast.LENGTH_LONG).show();
-        });
-        box.addView(multi);
-
-        Button accessibility = new Button(this);
-        accessibility.setText("Enable Floating Window Control");
-        accessibility.setTextSize(16);
-        accessibility.setOnClickListener(v ->
-                startActivity(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)));
-        box.addView(accessibility);
-
-        Button stop = new Button(this);
-        stop.setText("Stop HyperDock");
-        stop.setOnClickListener(v -> stopService(new Intent(this, TaskbarService.class)));
-        box.addView(stop);
 
         setContentView(box);
     }
