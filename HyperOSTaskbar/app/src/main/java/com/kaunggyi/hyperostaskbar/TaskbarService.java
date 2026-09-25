@@ -59,9 +59,9 @@ public class TaskbarService extends Service {
 
     private void buildBar() {
         final LinearLayout shell = new LinearLayout(this);
-        shell.setOrientation(LinearLayout.HORIZONTAL);
+        shell.setOrientation(LinearLayout.VERTICAL);
         shell.setGravity(Gravity.CENTER_VERTICAL);
-        shell.setPadding(dp(8), dp(5), dp(8), dp(5));
+        shell.setPadding(dp(5), dp(8), dp(5), dp(8));
 
         final HorizontalScrollView scroll = new HorizontalScrollView(this);
         scroll.setHorizontalScrollBarEnabled(false);
