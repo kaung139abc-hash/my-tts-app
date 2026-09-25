@@ -6,6 +6,8 @@ import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.provider.Settings;
+import android.graphics.Color;
+import android.view.Gravity;
 import android.widget.Button;
 import android.widget.LinearLayout;
 import android.widget.TextView;
@@ -52,6 +54,29 @@ public class MainActivity extends Activity {
             }
         });
         box.addView(start);
+
+        Button multi = new Button(this);
+        multi.setText("4-App Floating Mode");
+        multi.setTextSize(16);
+        multi.setOnClickListener(v -> {
+            if (!Settings.canDrawOverlays(this)) {
+                startActivity(new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                        Uri.parse("package:" + getPackageName())));
+                return;
+            }
+            startTaskbar();
+            android.widget.Toast.makeText(this,
+                    "4-App Floating Mode started. Use the side Taskbar to open apps.",
+                    android.widget.Toast.LENGTH_LONG).show();
+        });
+        box.addView(multi);
+
+        Button accessibility = new Button(this);
+        accessibility.setText("Enable Floating Window Control");
+        accessibility.setTextSize(16);
+        accessibility.setOnClickListener(v ->
+                startActivity(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)));
+        box.addView(accessibility);
 
         Button stop = new Button(this);
         stop.setText("Stop Taskbar");
