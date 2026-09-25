@@ -10,6 +10,8 @@ import android.os.*;
 import android.provider.Settings;
 import android.view.*;
 import android.widget.*;
+import android.app.ActivityOptions;
+import android.graphics.Rect;
 import java.util.*;
 
 public class TaskbarService extends Service {
@@ -17,6 +19,7 @@ public class TaskbarService extends Service {
     private static final int NOTIFICATION_ID = 1001;
         private WindowManager wm;
     private View bar;
+    private int nextWindowSlot = 0;
 
     private int dp(float v) {
         return (int) (v * getResources().getDisplayMetrics().density + 0.5f);
@@ -209,8 +212,31 @@ public class TaskbarService extends Service {
                 try {
                     Intent in = pm.getLaunchIntentForPackage(ai.packageName);
                     if (in != null) {
-                        in.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                        startActivity(in);
+                        in.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK
+                                | Intent.FLAG_ACTIVITY_MULTIPLE_TASK
+                                | Intent.FLAG_ACTIVITY_NEW_DOCUMENT);
+
+                        int w = getResources().getDisplayMetrics().widthPixels;
+                        int h = getResources().getDisplayMetrics().heightPixels;
+                        int top = dp(24);
+                        int bottom = h - dp(70);
+                        int halfW = w / 2;
+                        int halfH = Math.max(dp(260), (bottom - top) / 2);
+                        int slot = nextWindowSlot++ % 4;
+                        int col = slot % 2;
+                        int row = slot / 2;
+                        int left = col * halfW;
+                        int right = (col == 1) ? w : halfW;
+                        int y1 = top + row * halfH;
+                        int y2 = (row == 1) ? bottom : Math.min(bottom, y1 + halfH);
+
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                            ActivityOptions options = ActivityOptions.makeBasic();
+                            options.setLaunchBounds(new Rect(left, y1, right, y2));
+                            startActivity(in, options.toBundle());
+                        } else {
+                            startActivity(in);
+                        }
                     }
                 } catch (RuntimeException ignored) {}
             });
