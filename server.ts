@@ -439,14 +439,8 @@ app.post('/api/transcribe-url', async (req: Request, res: Response) => {
     });
   } catch (err: any) {
     console.error('URL Transcription error:', err);
-    const errText = err?.stderr || err?.message || '';
-    if (errText.includes('Sign in to confirm you’re not a bot') || errText.includes('HTTP Error 429')) {
-      return res.status(400).json({ 
-        error: 'YouTube မူပိုင်ခွင့် စစ်ဆေးမှု (Bot Verification) ကြောင့် လင့်ခ်မှ တိုက်ရိုက်ဒေါင်း၍ မရနိုင်သေးပါ။ ဘေးရှိ "ဖိုင် တိုက်ရိုက် Upload တင်ရန်" Tab ကိုနှိပ်ပြီး မိမိဖုန်းထဲရှိ Video/Audio ဖိုင်ကို ရွေးချယ်ပေးပါက SRT စာတန်းထိုး တိကျစွာ ချက်ချင်းရရှိပါမည်ခင်ဗျာ။' 
-      });
-    }
-    return res.status(500).json({ 
-      error: 'ဗီဒီယိုလင့်ခ်မှ အသံဖမ်းယူ၍ မရနိုင်ပါ။ "ဖိုင် တိုက်ရိုက် Upload တင်ရန်" ခလုတ်ဖြင့် ဗီဒီယို သို့မဟုတ် အသံဖိုင် တင်၍ အသုံးပြုပေးပါခင်ဗျာ။' 
+    return res.status(400).json({ 
+      error: 'ဤ Video Link မှ အသံကို ဆာဗာက တိုက်ရိုက်ဆွဲယူ၍ မရနိုင်ပါ။ အောက်ပါ "ဖိုင် တိုက်ရိုက် Upload တင်မည်" ခလုတ်ကို နှိပ်ပြီး မိမိဖုန်းထဲရှိ Video/Audio ဖိုင်ကို ရွေးချယ်ပေးပါက SRT စာတန်းထိုး တိကျစွာ ချက်ချင်းရရှိပါမည်။' 
     });
   } finally {
     try {
