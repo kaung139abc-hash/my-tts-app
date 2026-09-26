@@ -333,7 +333,7 @@ export const App: React.FC = () => {
   return (
     <div className="min-h-screen bg-[#0d0f15] text-slate-100 flex flex-col font-sans selection:bg-indigo-500 selection:text-white">
       {/* Header */}
-      <header className="border-b border-white/10 bg-[#121520]/80 backdrop-blur-md sticky top-0 z-50 px-4 lg:px-8 py-3.5 flex items-center justify-between">
+      <header className="border-b border-white/10 bg-[#121520]/90 backdrop-blur-md sticky top-0 z-50 px-4 lg:px-8 py-3 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-indigo-600 via-indigo-500 to-purple-500 flex items-center justify-center shadow-lg shadow-indigo-500/25">
             <Mic className="w-5 h-5 text-white" />
@@ -342,20 +342,31 @@ export const App: React.FC = () => {
             <h1 className="text-base lg:text-lg font-bold tracking-tight text-white flex items-center gap-2">
               VoiceMaster Studio
               <span className="text-[10px] font-semibold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-2 py-0.5 rounded-full">
-                10k Chars • Real Human TTS • AI Scriptwriter
+                Unlimited TTS & Story Engine
               </span>
             </h1>
             <p className="text-xs text-slate-400 hidden sm:block">
-              လူအစစ်အသံ Text-to-Speech (စာလုံးရေ ၁၀,၀၀၀) + YouTube/TikTok ဇာတ်လမ်းဇာတ်ညွှန်း ရေးဖွဲ့စနစ်
+              လူအစစ်အသံ Text-to-Speech (စာလုံးရေ အကန့်အသတ်မရှိ) + YouTube/TikTok ဇာတ်လမ်းစက်
             </p>
           </div>
         </div>
 
         <div className="flex items-center gap-2">
-          <span className="text-[11px] font-semibold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1 rounded-lg flex items-center gap-1.5">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-            <span>Real Human Engine Active</span>
-          </span>
+          {/* Direct Header History Access Button */}
+          <button
+            onClick={() => setMainMode('history')}
+            className={`px-3 py-1.5 rounded-xl border text-xs font-bold flex items-center gap-1.5 transition-all shadow-md active:scale-95 ${
+              mainMode === 'history'
+                ? 'bg-purple-600 text-white border-purple-500 ring-2 ring-purple-400/40 shadow-purple-600/30'
+                : 'bg-[#1a1e2e] border-indigo-500/30 text-indigo-200 hover:bg-indigo-600/20 hover:border-indigo-400'
+            }`}
+          >
+            <History className="w-4 h-4 text-purple-400" />
+            <span>မှတ်တမ်း ({historyItems.length})</span>
+            {historyItems.length > 0 && (
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+            )}
+          </button>
         </div>
       </header>
 
@@ -380,44 +391,44 @@ export const App: React.FC = () => {
       {/* Main Content Area */}
       <main className="flex-1 max-w-4xl w-full mx-auto px-4 py-6 flex flex-col gap-6">
         {/* Navigation Tabs: Mode 1 (Unlimited TTS) vs Mode 2 (AI Story Generator) vs Mode 3 (Audio History Library) */}
-        <div className="bg-[#151824] p-1.5 rounded-2xl border border-white/10 flex items-center gap-1.5 sm:gap-2 max-w-xl mx-auto w-full shadow-lg">
+        <div className="bg-[#151824] p-2 rounded-2xl border border-white/15 flex flex-col sm:flex-row items-center gap-2 max-w-2xl mx-auto w-full shadow-2xl shadow-black/50">
           <button
             onClick={() => setMainMode('tts')}
-            className={`flex-1 flex items-center justify-center gap-1.5 sm:gap-2 py-2.5 sm:py-3 rounded-xl text-xs sm:text-sm font-bold transition-all ${
+            className={`w-full sm:flex-1 flex items-center justify-center gap-2 py-3 px-3 rounded-xl text-xs sm:text-sm font-bold transition-all ${
               mainMode === 'tts'
-                ? 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-lg shadow-indigo-600/30'
-                : 'text-slate-400 hover:text-white hover:bg-white/5'
+                ? 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-lg shadow-indigo-600/40 ring-2 ring-indigo-400/50'
+                : 'text-slate-300 hover:text-white hover:bg-white/5 bg-[#0e111a] border border-white/5'
             }`}
           >
-            <Volume2 className="w-4 h-4 shrink-0" />
-            <span className="truncate">လူအစစ် TTS (အကန့်အသတ်မရှိ)</span>
+            <Volume2 className="w-4 h-4 shrink-0 text-indigo-400" />
+            <span>လူအစစ် TTS (Unlimited)</span>
           </button>
 
           <button
             onClick={() => setMainMode('writer')}
-            className={`flex-1 flex items-center justify-center gap-1.5 sm:gap-2 py-2.5 sm:py-3 rounded-xl text-xs sm:text-sm font-bold transition-all ${
+            className={`w-full sm:flex-1 flex items-center justify-center gap-2 py-3 px-3 rounded-xl text-xs sm:text-sm font-bold transition-all ${
               mainMode === 'writer'
-                ? 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-lg shadow-indigo-600/30'
-                : 'text-slate-400 hover:text-white hover:bg-white/5'
+                ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-lg shadow-purple-600/40 ring-2 ring-purple-400/50'
+                : 'text-slate-300 hover:text-white hover:bg-white/5 bg-[#0e111a] border border-white/5'
             }`}
           >
-            <Wand2 className="w-4 h-4 shrink-0" />
-            <span className="truncate">AI ဇာတ်လမ်းစက်</span>
+            <Wand2 className="w-4 h-4 shrink-0 text-pink-400" />
+            <span>AI ဇာတ်လမ်းစက်</span>
           </button>
 
           <button
             onClick={() => setMainMode('history')}
-            className={`flex-1 flex items-center justify-center gap-1.5 sm:gap-2 py-2.5 sm:py-3 rounded-xl text-xs sm:text-sm font-bold transition-all relative ${
+            className={`w-full sm:flex-1 flex items-center justify-center gap-2 py-3 px-3 rounded-xl text-xs sm:text-sm font-bold transition-all relative ${
               mainMode === 'history'
-                ? 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-lg shadow-indigo-600/30'
-                : 'text-slate-400 hover:text-white hover:bg-white/5'
+                ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-lg shadow-emerald-600/40 ring-2 ring-emerald-400/50'
+                : 'text-emerald-300 hover:text-white hover:bg-emerald-500/10 bg-[#0e111a] border border-emerald-500/30'
             }`}
           >
-            <History className="w-4 h-4 shrink-0" />
-            <span className="truncate">မှတ်တမ်း ({historyItems.length})</span>
-            {historyItems.length > 0 && mainMode !== 'history' && (
-              <span className="w-2 h-2 rounded-full bg-indigo-500 absolute top-2 right-2"></span>
-            )}
+            <History className="w-4 h-4 shrink-0 text-emerald-400" />
+            <span className="font-extrabold">📂 သမိုင်းမှတ်တမ်း</span>
+            <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
+              {historyItems.length} ခု
+            </span>
           </button>
         </div>
 
@@ -647,9 +658,18 @@ export const App: React.FC = () => {
                     onPause={() => setIsPlayingAudio(false)}
                     onEnded={() => setIsPlayingAudio(false)}
                   />
-                  <p className="text-[11px] text-slate-400 text-center">
-                    အသံဖိုင်ကို တိုက်ရိုက် နားထောင်နိုင်ပြီး Download .MP3 ခလုတ်ဖြင့် သိမ်းဆည်းနိုင်ပါသည်
-                  </p>
+                  <div className="flex flex-col sm:flex-row items-center justify-between gap-2 pt-1">
+                    <p className="text-[11px] text-slate-400">
+                      ✓ ဤအသံဖိုင်ကို သမိုင်းမှတ်တမ်း (History) တွင် အလိုအလျောက် သိမ်းဆည်းပြီးဖြစ်ပါသည်
+                    </p>
+                    <button
+                      onClick={() => setMainMode('history')}
+                      className="text-xs text-emerald-400 hover:text-emerald-300 font-bold flex items-center gap-1 underline underline-offset-4"
+                    >
+                      <History className="w-3.5 h-3.5" />
+                      <span>မှတ်တမ်းကြည့်ရှုမည် ➔</span>
+                    </button>
+                  </div>
                 </div>
               </div>
             )}
