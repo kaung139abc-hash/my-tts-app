@@ -4,7 +4,7 @@ import {
   Sparkles, RefreshCw, AlertCircle, DollarSign,
   Languages, Clock, Subtitles, Volume2, Video, CheckCircle2,
   ExternalLink, Layers, ArrowRight, Settings2, Sliders, UserCheck,
-  FileAudio, Info, Mic, X, BookOpen, Wand2, Lightbulb, History, Trash2, RotateCcw
+  FileAudio, Info, Mic, X, BookOpen, Wand2, Lightbulb, History, Trash2, RotateCcw, Music, Music2, Disc
 } from 'lucide-react';
 
 interface VoiceItem {
@@ -15,10 +15,18 @@ interface VoiceItem {
   desc: string;
 }
 
+interface BgmItem {
+  id: string;
+  name: string;
+  category: string;
+  volume?: number;
+}
+
 interface TTSResult {
   audioUrl: string;
   characterCount: number;
   voiceUsed: string;
+  bgmUsed?: string;
 }
 
 interface ScriptResult {
@@ -35,6 +43,7 @@ interface HistoryItem {
   title: string;
   content: string;
   voiceName?: string;
+  bgmName?: string;
   audioUrl?: string;
   characterCount: number;
   timestamp: number;
@@ -49,7 +58,10 @@ export const App: React.FC = () => {
   // ----------------------------------------------------
   const [ttsText, setTtsText] = useState('');
   const [voices, setVoices] = useState<VoiceItem[]>([]);
+  const [bgmTracks, setBgmTracks] = useState<BgmItem[]>([]);
   const [selectedVoice, setSelectedVoice] = useState('my-MM-ThihaNeural');
+  const [selectedBgm, setSelectedBgm] = useState('none');
+  const [bgmVolume, setBgmVolume] = useState(0.18);
   const [speechRate, setSpeechRate] = useState('+0%');
   const [speechPitch, setSpeechPitch] = useState('+0Hz');
   const [isTtsLoading, setIsTtsLoading] = useState(false);
@@ -140,13 +152,16 @@ export const App: React.FC = () => {
     };
   }, [showInAppAdModal, adCountdown]);
 
-  // Load voices on mount
+  // Load voices and BGM tracks on mount
   useEffect(() => {
     fetch('/api/tts-voices')
       .then((res) => res.json())
       .then((data) => {
         if (data.voices) {
           setVoices(data.voices);
+        }
+        if (data.bgmTracks) {
+          setBgmTracks(data.bgmTracks);
         }
       })
       .catch((err) => console.error('Failed to load voices:', err));
@@ -202,7 +217,7 @@ export const App: React.FC = () => {
   };
 
   // ----------------------------------------------------
-  // Text to Speech Execution (Unlimited characters)
+  // Text to Speech Execution (Unlimited characters + BGM Mixing)
   // ----------------------------------------------------
   const handleGenerateTTS = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -220,7 +235,9 @@ export const App: React.FC = () => {
           text: ttsText.trim(),
           voice: selectedVoice,
           rate: speechRate,
-          pitch: speechPitch
+          pitch: speechPitch,
+          bgm: selectedBgm,
+          bgmVolume: bgmVolume
         })
       });
 
@@ -231,13 +248,15 @@ export const App: React.FC = () => {
 
       setTtsResult(data);
       const voiceName = voices.find(v => v.id === selectedVoice)?.name || selectedVoice;
+      const bgmName = bgmTracks.find(b => b.id === selectedBgm)?.name;
 
       // Automatically save to Audio History Library
       saveToHistory({
         type: 'tts',
-        title: `${voiceName} ၏ အသံဖတ်ကြားချက်`,
+        title: `${voiceName} ၏ အသံဖတ်ကြားချက်${selectedBgm !== 'none' ? ` (${bgmName})` : ''}`,
         content: ttsText.trim(),
         voiceName,
+        bgmName,
         audioUrl: data.audioUrl,
         characterCount: data.characterCount
       });
@@ -297,9 +316,17 @@ export const App: React.FC = () => {
     }
   };
 
-  // Transfer generated script directly to TTS Engine with one click!
-  const sendScriptToTTS = (scriptContent: string) => {
+  // Transfer generated script directly to TTS Engine with one click and auto-match natural BGM!
+  const sendScriptToTTS = (scriptContent: string, genre?: string) => {
     setTtsText(scriptContent);
+    // Auto-select matching natural BGM based on genre
+    const targetGenre = genre || scriptGenre;
+    if (targetGenre === 'horror') setSelectedBgm('horror');
+    else if (targetGenre === 'motivation') setSelectedBgm('inspiring');
+    else if (targetGenre === 'history' || targetGenre === 'tech') setSelectedBgm('mystery');
+    else if (targetGenre === 'bedtime-story' || targetGenre === 'fun-facts') setSelectedBgm('calm');
+    else setSelectedBgm('calm');
+
     setMainMode('tts');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -529,7 +556,68 @@ export const App: React.FC = () => {
                   />
                 </div>
 
-                {/* 3. Speed & Pitch Controls */}
+                {/* 3. Natural Background Music (BGM) Selector */}
+                <div className="space-y-2 bg-[#0d0f17] p-4 rounded-2xl border border-white/10">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 pb-2 border-b border-white/5">
+                    <label className="text-xs font-bold text-slate-200 flex items-center gap-1.5">
+                      <Music2 className="w-4 h-4 text-purple-400" />
+                      <span>သဘာဝကျသော နောက်ခံတေးဂီတ (Natural Background Music - BGM)</span>
+                    </label>
+                    <span className="text-[11px] text-purple-400 font-semibold">
+                      ✓ စကားသံအောက်မှ သဘာဝကျကျ ရောစပ်ပေးမည်
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 pt-1">
+                    {bgmTracks.map((bgm) => {
+                      const isSelected = selectedBgm === bgm.id;
+                      return (
+                        <button
+                          key={bgm.id}
+                          type="button"
+                          onClick={() => setSelectedBgm(bgm.id)}
+                          className={`p-2.5 rounded-xl border text-left transition-all flex flex-col justify-between gap-1 ${
+                            isSelected
+                              ? 'bg-purple-600 text-white border-purple-500 shadow-md shadow-purple-600/30 ring-2 ring-purple-400/40'
+                              : 'bg-[#151926] border-white/10 text-slate-300 hover:text-white hover:border-white/20'
+                          }`}
+                        >
+                          <span className="text-xs font-bold leading-snug">{bgm.name}</span>
+                          <span className={`text-[10px] ${isSelected ? 'text-purple-200' : 'text-slate-500'}`}>
+                            {bgm.id === 'none' ? 'မူလ စကားသံစစ်စစ်' : 'သဘာဝ Ambient Sound'}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {selectedBgm !== 'none' && (
+                    <div className="pt-2 flex items-center justify-between gap-4 text-xs text-slate-400">
+                      <span className="text-[11px] flex items-center gap-1">
+                        <Disc className="w-3.5 h-3.5 text-purple-400 animate-spin" />
+                        <span>BGM အသံကျယ်အား: <b>{Math.round(bgmVolume * 100)}%</b> (လူအသံကို မဖုံးစေရန် အလွန်သဘာဝကျကျ ချိန်ညှိထားပါသည်)</span>
+                      </span>
+                      <div className="flex items-center gap-1.5">
+                        {[0.12, 0.18, 0.25, 0.35].map((vol) => (
+                          <button
+                            key={vol}
+                            type="button"
+                            onClick={() => setBgmVolume(vol)}
+                            className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                              bgmVolume === vol
+                                ? 'bg-purple-600 text-white'
+                                : 'bg-white/5 text-slate-400 hover:bg-white/10'
+                            }`}
+                          >
+                            {vol === 0.12 ? 'တိုး' : vol === 0.18 ? 'ပုံမှန်' : vol === 0.25 ? 'အလယ်' : 'ကျယ်'}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* 4. Speed & Pitch Controls */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-[#0d0f17] p-3.5 rounded-xl border border-white/5">
                   <div className="space-y-1.5">
                     <div className="flex items-center justify-between text-xs">
@@ -625,11 +713,17 @@ export const App: React.FC = () => {
                       <CheckCircle2 className="w-3.5 h-3.5" />
                       <span>အသံဖိုင် အပြည့်အစုံ အောင်မြင်စွာ ထွက်ရှိပါပြီ</span>
                     </div>
-                    <h3 className="text-base font-bold text-white flex items-center gap-2">
+                    <h3 className="text-base font-bold text-white flex items-center gap-2 flex-wrap">
                       <span>{voices.find(v => v.id === ttsResult.voiceUsed)?.name || ttsResult.voiceUsed} ၏ အသံထွက်</span>
                       <span className="text-xs font-normal text-slate-400 font-mono">
                         ({ttsResult.characterCount} စာလုံးရေ အပြည့်)
                       </span>
+                      {selectedBgm !== 'none' && (
+                        <span className="text-[11px] font-bold text-purple-300 bg-purple-500/20 border border-purple-500/30 px-2 py-0.5 rounded-full flex items-center gap-1">
+                          <Music className="w-3 h-3 text-purple-400" />
+                          <span>BGM: {bgmTracks.find(b => b.id === selectedBgm)?.name || selectedBgm}</span>
+                        </span>
+                      )}
                     </h3>
                   </div>
 

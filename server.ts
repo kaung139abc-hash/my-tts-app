@@ -116,6 +116,16 @@ export const SUPPORTED_VOICES = [
   }
 ];
 
+// Supported Natural Background Music (BGM) Tracks
+const SUPPORTED_BGM_TRACKS = [
+  { id: 'none', name: 'BGM မထည့်ပါ (သီးသန့် လူအသံ)', category: 'none', volume: 0 },
+  { id: 'horror', name: '👻 သရဲ / ထိတ်လန့်ဖွယ် သဘာဝအသံ (Spooky Ambient)', category: 'horror', file: 'horror.mp3', volume: 0.20 },
+  { id: 'calm', name: '🌿 သဘာဝ အေးချမ်းဖွယ် သံစဉ် (Calm Nature & Piano)', category: 'calm', file: 'calm.mp3', volume: 0.18 },
+  { id: 'inspiring', name: '✨ စိတ်ခွန်အားဖြည့် သံစဉ် (Inspiring Cinematic)', category: 'inspiring', file: 'inspiring.mp3', volume: 0.18 },
+  { id: 'mystery', name: '🕵️ လျှို့ဝှက်ဆန်းကြယ် သံစဉ် (Mystery Suspense)', category: 'mystery', file: 'mystery.mp3', volume: 0.22 },
+  { id: 'emotional', name: '🍂 ရင်နင့်ဖွယ် ဒရာမာ သံစဉ် (Emotional Drama)', category: 'emotional', file: 'emotional.mp3', volume: 0.18 },
+];
+
 function isValidHttpUrl(stringUrl: string): boolean {
   if (!stringUrl || typeof stringUrl !== 'string') return false;
   if (!/^https?:\/\//i.test(stringUrl.trim())) return false;
@@ -128,14 +138,17 @@ function isValidHttpUrl(stringUrl: string): boolean {
 }
 
 // -------------------------------------------------------------------------------------
-// 1. Text-To-Speech (TTS) + Unlimited Character Length Synthesis
+// 1. Text-To-Speech (TTS) + Unlimited Character Length Synthesis + Natural BGM Mixing
 // -------------------------------------------------------------------------------------
 app.get('/api/tts-voices', (_req: Request, res: Response) => {
-  return res.json({ voices: SUPPORTED_VOICES });
+  return res.json({ 
+    voices: SUPPORTED_VOICES,
+    bgmTracks: SUPPORTED_BGM_TRACKS
+  });
 });
 
 app.post('/api/text-to-speech', async (req: Request, res: Response) => {
-  const { text, voice = 'my-MM-ThihaNeural', rate = '+0%', pitch = '+0Hz' } = req.body;
+  const { text, voice = 'my-MM-ThihaNeural', rate = '+0%', pitch = '+0Hz', bgm = 'none', bgmVolume = 0.2 } = req.body;
 
   if (!text || typeof text !== 'string' || text.trim().length === 0) {
     return res.status(400).json({ error: 'ကျေးဇူးပြု၍ စာသား ရိုက်ထည့်ပေးပါခင်ဗျာ။' });
@@ -144,7 +157,7 @@ app.post('/api/text-to-speech', async (req: Request, res: Response) => {
   const cleanText = text.trim();
 
   try {
-    console.log(`Starting Unlimited Natural Edge TTS with voice: ${voice}, length: ${cleanText.length} chars`);
+    console.log(`Starting Natural Edge TTS with voice: ${voice}, BGM: ${bgm}, length: ${cleanText.length} chars`);
     
     // Function to run Communicate on any text block
     const synthesizeStream = async (txt: string, vName: string): Promise<Buffer> => {
@@ -223,6 +236,35 @@ app.post('/api/text-to-speech', async (req: Request, res: Response) => {
       throw new Error('Speech synthesis produced no audio data.');
     }
 
+    // 4. BGM Audio Mixing (Natural ambient music mixed underneath human speech)
+    if (bgm && bgm !== 'none') {
+      const selectedBgmTrack = SUPPORTED_BGM_TRACKS.find(b => b.id === bgm);
+      if (selectedBgmTrack && selectedBgmTrack.file) {
+        const bgmFilePath = path.join(__dirname, 'public', 'bgm', selectedBgmTrack.file);
+        if (fs.existsSync(bgmFilePath)) {
+          const tempSpeechPath = `/tmp/speech_${Date.now()}_${Math.random().toString(36).substr(2, 5)}.mp3`;
+          const tempMixedPath = `/tmp/mixed_${Date.now()}_${Math.random().toString(36).substr(2, 5)}.mp3`;
+          try {
+            fs.writeFileSync(tempSpeechPath, audioBuffer);
+            const vol = typeof bgmVolume === 'number' ? Math.max(0.05, Math.min(0.5, bgmVolume)) : 0.18;
+            
+            // Mix Speech (100% volume, crisp) + BGM (Looped infinitely to speech length with gentle ducking and fade out)
+            const ffmpegMixCmd = `ffmpeg -y -i "${tempSpeechPath}" -stream_loop -1 -i "${bgmFilePath}" -filter_complex "[1:a]volume=${vol}[bgm];[0:a][bgm]amix=inputs=2:duration=first:dropout_transition=2" -c:a libmp3lame -b:a 192k "${tempMixedPath}"`;
+            
+            await execAsync(ffmpegMixCmd);
+            if (fs.existsSync(tempMixedPath)) {
+              audioBuffer = fs.readFileSync(tempMixedPath);
+              try { fs.unlinkSync(tempMixedPath); } catch (_) {}
+            }
+          } catch (mixErr) {
+            console.warn('BGM Mixing failed, returning raw speech audio:', mixErr);
+          } finally {
+            try { if (fs.existsSync(tempSpeechPath)) fs.unlinkSync(tempSpeechPath); } catch (_) {}
+          }
+        }
+      }
+    }
+
     const base64Audio = audioBuffer.toString('base64');
     const audioDataUrl = `data:audio/mp3;base64,${base64Audio}`;
 
@@ -232,6 +274,7 @@ app.post('/api/text-to-speech', async (req: Request, res: Response) => {
       audioBytes: audioBuffer.length,
       characterCount: cleanText.length,
       voiceUsed: voice,
+      bgmUsed: bgm
     });
   } catch (err: any) {
     console.error('Edge TTS Error:', err?.message || err);
