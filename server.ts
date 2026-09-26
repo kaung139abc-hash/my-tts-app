@@ -334,68 +334,115 @@ Schema:
 }
 
 // =====================================================================================
-// AI Story & Video Script Generator (Generates full, rich, long storytelling scripts)
+// AI Story & Video Script Generator (Generates full, rich, long 7,000-character scripts)
 // =====================================================================================
 app.post('/api/generate-story-script', async (req: Request, res: Response) => {
-  const { topic, genre = 'horror', duration = 'long-story', targetAudience = 'all', language = 'my' } = req.body;
+  const { topic, genre = 'horror', duration = '5min', targetAudience = 'all', language = 'my' } = req.body;
   if (!topic || !topic.trim()) {
     return res.status(400).json({ error: 'ဇာတ်လမ်း သို့မဟုတ် ခေါင်းစဉ်ကို ထည့်သွင်းပေးပါခင်ဗျာ။' });
   }
 
   try {
-    const prompt = `You are an acclaimed master viral storyteller and Burmese novelist.
-The user wants an EXTREMELY LONG, IMMERSIVE, CONTINUOUS storytelling narration script in Myanmar language (Burmese Unicode).
+    console.log(`Starting 2-Part Deep Story Generation for topic: "${topic}" (${genre})...`);
+
+    // Part 1: Act 1 & Act 2 (Introduction, Ambient Atmosphere, Character Journey, Mystery Discovery)
+    const promptPart1 = `You are an acclaimed master novelist, film screenwriter, and viral storyteller in Myanmar.
+The user wants an EXTREMELY LONG, IMMERSIVE storytelling script in natural spoken Burmese Unicode (မြန်မာစကားပြော လေသံစစ်စစ်).
 
 Topic/Theme: "${topic.trim()}"
-Genre: "${genre}" (e.g., horror/သရဲဇာတ်လမ်း, motivation/စိတ်ခွန်အားဖြည့်, tech/နည်းပညာဗဟုသုတ, history/သမိုင်းကြောင်း, fun-facts/စိတ်ဝင်စားဖွယ်ရာများ, bedtime-story/ပုံပြင်)
-Target Duration Mode: "${duration}"
+Genre: "${genre}" (horror/သရဲဇာတ်လမ်း, motivation/စိတ်ခွန်အားဖြည့်, tech/နည်းပညာ, history/သမိုင်း, fun-facts/ဗဟုသုတ, bedtime-story/ပုံပြင်)
 
-CRITICAL LENGTH & DETAIL INSTRUCTIONS:
-1. You MUST generate a very long, complete story script consisting of 10 to 15 richly detailed paragraphs (at least 3,500 to 5,500 Myanmar characters / 8 to 15 minutes of continuous audio).
-2. DO NOT write a summary or short outline! Build the story with thorough scene descriptions, ambient sounds, deep suspense, back-and-forth dialogue between characters, thrilling moments, high tension climax, and an emotionally moving conclusion.
-3. Write in natural, gripping, spoken-style Burmese Unicode (စာပေသုံး အလွန်ကျပ်တည်းခြင်းမရှိဘဲ နားထောင်သူ စွဲမက်စေမည့် စကားပြောလေသံစစ်စစ်) that sounds amazing when read by a Text-to-Speech human voice.
-4. Do NOT include bracketed stage directions like [Music starts] or [Scene 1] so that the script can be fed directly to the Text-to-Speech engine without awkward artifacts.
-5. Provide a creative title and the full continuous narration text.
+INSTRUCTIONS FOR PART 1:
+- Write Part 1 covering Act 1 (Atmospheric opening, setting, character background, eerie journey) and Act 2 (Deepening mystery, creepy encounters, ominous signs).
+- Write in extreme narrative detail (at least 3,500 Myanmar characters / 8 to 10 rich paragraphs).
+- Build immense tension. Do NOT resolve the conflict yet; end Part 1 on a dramatic suspenseful cliffhanger.
+- Do NOT include bracketed stage directions like [Music starts] or [Scene 1] so it can be fed directly to Text-to-Speech.
 
-Respond strictly in valid JSON matching this schema:
+Respond strictly in valid JSON:
 {
   "title": "string (Creative Myanmar Title)",
   "category": "string",
-  "wordCount": 0,
-  "estimatedMinutes": "string (e.g. 8 - 12 မိနစ်)",
-  "narrationScript": "string (complete long continuous spoken text formatted cleanly in 10-15 paragraphs ready for TTS)"
+  "part1Text": "string (long spoken Burmese story text)"
 }`;
 
-    let response = null;
+    let resPart1: any = null;
     const modelsToTry = ['gemini-3.1-flash-lite', 'gemini-3.8-flash', 'gemini-flash-latest'];
     for (const m of modelsToTry) {
       try {
-        response = await ai.models.generateContent({
+        resPart1 = await ai.models.generateContent({
           model: m,
-          contents: prompt,
+          contents: promptPart1,
           config: {
             responseMimeType: 'application/json',
             maxOutputTokens: 8192
           }
         });
-        if (response && response.text) break;
+        if (resPart1 && resPart1.text) break;
       } catch (err: any) {
-        console.warn(`Script generation failed with ${m}:`, err?.message || err);
+        console.warn(`Part 1 generation failed with ${m}:`, err?.message || err);
       }
     }
 
-    if (!response || !response.text) {
+    if (!resPart1 || !resPart1.text) {
       throw new Error('AI script generation failed. Please try again.');
     }
 
-    const scriptData = JSON.parse(response.text);
+    const dataPart1 = JSON.parse(resPart1.text);
+    const storyTitle = dataPart1.title || topic;
+    const part1Story = dataPart1.part1Text || '';
+
+    // Part 2: Act 3 & Act 4 (Climax, intense revelation, emotional escape/aftermath, memorable conclusion)
+    const promptPart2 = `You are continuing the master storytelling script: "${storyTitle}".
+Here is the previous narrative (Part 1):
+${part1Story.slice(-1200)}
+
+INSTRUCTIONS FOR PART 2:
+- Write Part 2 covering Act 3 (Shocking climax, revelation of the true mystery, intense heart-pounding moments) and Act 4 (Emotional aftermath, realization, memorable lesson/conclusion).
+- Write in extreme narrative detail (at least 3,500 Myanmar characters / 8 to 10 rich paragraphs) in natural spoken Burmese.
+- Continue smoothly from Part 1.
+- Do NOT include bracketed directions like [Music] or [Ending].
+
+Respond strictly in valid JSON:
+{
+  "part2Text": "string (continuation spoken Burmese story text)"
+}`;
+
+    let resPart2: any = null;
+    for (const m of modelsToTry) {
+      try {
+        resPart2 = await ai.models.generateContent({
+          model: m,
+          contents: promptPart2,
+          config: {
+            responseMimeType: 'application/json',
+            maxOutputTokens: 8192
+          }
+        });
+        if (resPart2 && resPart2.text) break;
+      } catch (err: any) {
+        console.warn(`Part 2 generation failed with ${m}:`, err?.message || err);
+      }
+    }
+
+    let fullNarration = part1Story;
+    if (resPart2 && resPart2.text) {
+      try {
+        const dataPart2 = JSON.parse(resPart2.text);
+        if (dataPart2.part2Text) {
+          fullNarration = `${part1Story.trim()}\n\n${dataPart2.part2Text.trim()}`;
+        }
+      } catch (_) {}
+    }
+
+    console.log(`Generated story successfully! Total characters: ${fullNarration.length}`);
+
     return res.json({
       success: true,
-      title: scriptData.title || topic,
-      category: scriptData.category || genre,
-      wordCount: scriptData.wordCount || scriptData.narrationScript?.length || 0,
-      estimatedMinutes: scriptData.estimatedMinutes || '၈ ~ ၁၂ မိနစ်',
-      script: scriptData.narrationScript || ''
+      title: storyTitle,
+      category: dataPart1.category || genre,
+      wordCount: fullNarration.length,
+      estimatedMinutes: '၅ မိနစ် (စာလုံးရေ ၇,၀၀၀ ခန့်)',
+      script: fullNarration
     });
   } catch (error: any) {
     console.error('Script generation error:', error);

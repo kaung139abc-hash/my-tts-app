@@ -65,8 +65,22 @@ export const App: React.FC = () => {
 
   // In-App Ad Modal state (so user stays 100% inside this app and never thrown out to browser)
   const [showInAppAdModal, setShowInAppAdModal] = useState(false);
+  const [adCountdown, setAdCountdown] = useState(20);
 
   const resultsSectionRef = useRef<HTMLDivElement | null>(null);
+
+  // 20-Second Mandatory Ad Countdown Timer
+  useEffect(() => {
+    let timer: any;
+    if (showInAppAdModal && adCountdown > 0) {
+      timer = setInterval(() => {
+        setAdCountdown((prev) => (prev > 0 ? prev - 1 : 0));
+      }, 1000);
+    }
+    return () => {
+      if (timer) clearInterval(timer);
+    };
+  }, [showInAppAdModal, adCountdown]);
 
   // Load voices on mount
   useEffect(() => {
@@ -81,6 +95,7 @@ export const App: React.FC = () => {
   }, []);
 
   const triggerMonetizationAd = () => {
+    setAdCountdown(20);
     setShowInAppAdModal(true);
   };
 
@@ -580,23 +595,22 @@ export const App: React.FC = () => {
                   <label className="text-xs font-bold text-slate-300 flex items-center justify-between">
                     <span className="flex items-center gap-1.5">
                       <Clock className="w-4 h-4 text-indigo-400" />
-                      <span>ဇာတ်လမ်း အရှည် ရွေးချယ်ပါ (အရှည်ကြီး အပြည့်အစုံ ရေးပေးမည်)</span>
+                      <span>ဇာတ်လမ်း အရှည် ရွေးချယ်ပါ</span>
                     </span>
                     <span className="text-[11px] text-purple-400 font-semibold">
-                      ✓ စာပိုဒ်စုံလင်စွာ ထွက်ရှိမည်
+                      ✓ စာလုံးရေ ၇,၀၀၀ (၅ မိနစ်အပြည့်)
                     </span>
                   </label>
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     {[
-                      { id: 'medium', label: 'အလယ်အလတ် (၃ ~ ၅ မိနစ်စာ)', desc: 'ဆောင်းပါး / ဇာတ်လမ်းတို' },
-                      { id: 'long-story', label: 'အရှည်ကြီး (၅ ~ ၈ မိနစ်စာ)', desc: 'ဝတ္ထုရှည် / YouTube ဗီဒီယို (အကြံပြု)' },
-                      { id: 'epic-story', label: 'အလွန်ရှည် (၈ ~ ၁၂ မိနစ်စာ)', desc: 'အပြည့်အစုံ နားဆင်ရန် ဇာတ်လမ်းရှည်' }
+                      { id: '5min', label: '၅ မိနစ်စာ (စာလုံးရေ ၇,၀၀၀ ခန့် - 7k Chars)', desc: 'ဝတ္ထုရှည် / YouTube ဗီဒီယို (အထူးအကြံပြု)' },
+                      { id: '3min', label: '၃ မိနစ်စာ (စာလုံးရေ ၄,၀၀၀ ခန့်)', desc: 'ဆောင်းပါး / ဇာတ်လမ်းတို' }
                     ].map((d) => (
                       <button
                         key={d.id}
                         type="button"
                         onClick={() => setScriptDuration(d.id)}
-                        className={`p-2.5 rounded-xl border text-left transition-all ${
+                        className={`p-3 rounded-xl border text-left transition-all ${
                           scriptDuration === d.id
                             ? 'bg-purple-600 text-white border-purple-500 shadow-lg shadow-purple-600/30 ring-2 ring-purple-400/40'
                             : 'bg-[#0d0f17] border-white/10 text-slate-400 hover:text-white hover:border-white/20'
@@ -693,26 +707,25 @@ export const App: React.FC = () => {
         VoiceMaster Studio • 10k Chars Real Human TTS & AI Viral Scriptwriter
       </footer>
 
-      {/* In-App Ad Popup Modal (User stays 100% inside the app!) */}
+      {/* In-App Ad Popup Modal (Mandatory 20-second viewing before closing) */}
       {showInAppAdModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-[#121520] border border-white/15 rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl flex flex-col max-h-[90vh]">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/85 backdrop-blur-md animate-in fade-in duration-200">
+          <div className="bg-[#121520] border border-white/20 rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl flex flex-col max-h-[90vh]">
             <div className="p-3.5 bg-[#171a29] border-b border-white/10 flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500 text-black">
                   SPONSORED
                 </span>
                 <span className="text-xs font-semibold text-slate-200">
-                  အထူးကြော်ငြာ ကမ်းလှမ်းချက်
+                  စပွန်ဆာ ကြော်ငြာ ကမ်းလှမ်းချက်
                 </span>
               </div>
-              <button
-                onClick={() => setShowInAppAdModal(false)}
-                className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 transition-colors"
-                title="ပိတ်မည်"
-              >
-                <X className="w-5 h-5" />
-              </button>
+              
+              {/* Top Countdown indicator */}
+              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-indigo-500/20 border border-indigo-500/40 text-[11px] font-mono text-indigo-300 font-bold">
+                <Clock className="w-3.5 h-3.5 text-indigo-400" />
+                <span>{adCountdown > 0 ? `${adCountdown}s ကျန်` : 'ပိတ်နိုင်ပါပြီ'}</span>
+              </div>
             </div>
 
             {/* In-App Ad Content Container */}
@@ -725,14 +738,27 @@ export const App: React.FC = () => {
               />
             </div>
 
-            <div className="p-3 bg-[#121520] border-t border-white/10 flex items-center justify-between text-xs text-slate-400">
-              <span>ကြော်ငြာကို App အတွင်း ကြည့်ရှုနေပါသည်</span>
-              <button
-                onClick={() => setShowInAppAdModal(false)}
-                className="px-4 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold"
-              >
-                ပိတ်မည် (Close)
-              </button>
+            <div className="p-3.5 bg-[#121520] border-t border-white/10 flex items-center justify-between gap-3 text-xs">
+              <span className="text-slate-400 text-[11px]">
+                {adCountdown > 0 ? `ကျေးဇူးပြု၍ ${adCountdown} စက္ကန့် ကြည့်ရှုပေးပါခင်ဗျာ...` : 'ကြော်ငြာ ကြည့်ရှုပြီးပါပြီ'}
+              </span>
+
+              {adCountdown > 0 ? (
+                <button
+                  disabled
+                  className="px-4 py-2 rounded-xl bg-slate-800/80 text-slate-400 font-bold text-xs flex items-center gap-2 cursor-not-allowed border border-white/5 opacity-70"
+                >
+                  <RefreshCw className="w-3.5 h-3.5 animate-spin text-amber-400" />
+                  <span>{adCountdown} စက္ကန့် စောင့်ပါ</span>
+                </button>
+              ) : (
+                <button
+                  onClick={() => setShowInAppAdModal(false)}
+                  className="px-5 py-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs shadow-lg shadow-emerald-600/30 active:scale-95 transition-all"
+                >
+                  ပိတ်မည် (Close Ad) ✓
+                </button>
+              )}
             </div>
           </div>
         </div>
