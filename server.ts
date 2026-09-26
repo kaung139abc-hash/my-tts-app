@@ -377,6 +377,77 @@ Schema:
   };
 }
 
+// =====================================================================================
+// AI Story & Video Script Generator (Option 1: For YouTube, TikTok, Facebook Creators)
+// =====================================================================================
+app.post('/api/generate-story-script', async (req: Request, res: Response) => {
+  const { topic, genre = 'horror', duration = '3min', targetAudience = 'all', language = 'my' } = req.body;
+  if (!topic || !topic.trim()) {
+    return res.status(400).json({ error: 'ဇာတ်လမ်း သို့မဟုတ် ခေါင်းစဉ်ကို ထည့်သွင်းပေးပါခင်ဗျာ။' });
+  }
+
+  try {
+    const prompt = `You are a master viral storyteller and video script writer for YouTube, TikTok, and Facebook.
+The user wants an engaging, complete, narration-ready script in Burmese (Myanmar) language based on the following input:
+
+Topic/Theme: "${topic.trim()}"
+Genre/Category: "${genre}" (e.g., horror/သရဲဇာတ်လမ်း, motivation/စိတ်ခွန်အားဖြည့်, tech/နည်းပညာဗဟုသုတ, history/သမိုင်းကြောင်း, fun-facts/စိတ်ဝင်စားဖွယ်ရာများ, bedtime-story/ပုံပြင်)
+Target Estimated Length: "${duration}"
+
+Instructions:
+1. Write in natural, gripping, spoken-style Burmese Unicode (စာပေသုံး အလွန်ကျပ်တည်းခြင်းမရှိဘဲ နားထောင်သူ စွဲမက်စေမည့် စကားပြောလေသံစစ်စစ်) that sounds amazing when read by a Text-to-Speech human voice.
+2. Structure the script smoothly with:
+   - Catchy Hook (အစပိုင်း စိတ်ဝင်စားဖွယ် ဆွဲဆောင်မှု)
+   - Engaging Body Paragraphs (ဇာတ်လမ်း သို့မဟုတ် အကြောင်းအရာ အသေးစိတ်)
+   - Emotional/Thought-provoking Conclusion (အဆုံးသတ် သင်ခန်းစာ သို့မဟုတ် အတွေးအမြင်)
+3. Do NOT include stage directions like [Music starts] or [Camera pans] inside the narration text so that the script can be fed directly to the Text-to-Speech engine without awkward artifacts.
+4. Provide a creative title and the full narration text ready for TTS.
+
+Respond strictly in valid JSON matching this schema:
+{
+  "title": "string (Creative Myanmar Title)",
+  "category": "string",
+  "wordCount": 0,
+  "estimatedMinutes": "string",
+  "narrationScript": "string (complete continuous spoken text formatted cleanly in paragraphs ready for TTS)"
+}`;
+
+    let response = null;
+    const modelsToTry = ['gemini-3.8-flash', 'gemini-3.1-flash-lite'];
+    for (const m of modelsToTry) {
+      try {
+        response = await ai.models.generateContent({
+          model: m,
+          contents: prompt,
+          config: {
+            responseMimeType: 'application/json'
+          }
+        });
+        if (response && response.text) break;
+      } catch (err: any) {
+        console.warn(`Script generation failed with ${m}:`, err?.message || err);
+      }
+    }
+
+    if (!response || !response.text) {
+      throw new Error('AI script generation failed. Please try again.');
+    }
+
+    const scriptData = JSON.parse(response.text);
+    return res.json({
+      success: true,
+      title: scriptData.title || topic,
+      category: scriptData.category || genre,
+      wordCount: scriptData.wordCount || scriptData.narrationScript?.length || 0,
+      estimatedMinutes: scriptData.estimatedMinutes || duration,
+      script: scriptData.narrationScript || ''
+    });
+  } catch (error: any) {
+    console.error('Script generation error:', error);
+    return res.status(500).json({ error: error.message || 'ဇာတ်ညွှန်းဖန်တီးရာတွင် အမှားဖြစ်ပေါ်သွားပါသည်။ နောက်တစ်ကြိမ် ထပ်မံကြိုးစားပေးပါ။' });
+  }
+});
+
 // Upload Media File -> Speech-to-SRT
 app.post('/api/transcribe-upload', upload.single('mediaFile'), async (req: Request, res: Response) => {
   const file = req.file;

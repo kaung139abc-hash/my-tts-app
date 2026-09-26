@@ -1,10 +1,10 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { 
-  FileText, Link2, Upload, Download, Copy, Check, Play, Pause,
+  FileText, Upload, Download, Copy, Check, Play, Pause,
   Sparkles, RefreshCw, AlertCircle, DollarSign,
   Languages, Clock, Subtitles, Volume2, Video, CheckCircle2,
   ExternalLink, Layers, ArrowRight, Settings2, Sliders, UserCheck,
-  FileAudio, Info, Mic, X
+  FileAudio, Info, Mic, X, BookOpen, Wand2, Lightbulb
 } from 'lucide-react';
 
 interface VoiceItem {
@@ -15,22 +15,6 @@ interface VoiceItem {
   desc: string;
 }
 
-interface SubtitleItem {
-  index: number;
-  startTime: string;
-  endTime: string;
-  text: string;
-}
-
-interface TranscribeResult {
-  title?: string;
-  url?: string;
-  language: string;
-  transcript: string;
-  subtitles: SubtitleItem[];
-  srt: string;
-}
-
 interface TTSResult {
   audioUrl: string;
   srt: string;
@@ -38,9 +22,17 @@ interface TTSResult {
   voiceUsed: string;
 }
 
+interface ScriptResult {
+  title: string;
+  category: string;
+  wordCount: number;
+  estimatedMinutes: string;
+  script: string;
+}
+
 export const App: React.FC = () => {
-  // Main Navigation Modes: 'tts' (Text to Speech 10k chars) vs 'stt' (Video to SRT)
-  const [mainMode, setMainMode] = useState<'tts' | 'stt'>('tts');
+  // Main Navigation Modes: 'tts' (Text to Speech 10k chars) vs 'writer' (AI Story & Script Generator)
+  const [mainMode, setMainMode] = useState<'tts' | 'writer'>('tts');
 
   // ----------------------------------------------------
   // Mode 1: Text-to-Speech (TTS) State
@@ -57,19 +49,17 @@ export const App: React.FC = () => {
   const audioPlayerRef = useRef<HTMLAudioElement | null>(null);
 
   // ----------------------------------------------------
-  // Mode 2: Video/Audio to SRT (STT) State (Default to 'upload' as file upload is 100% reliable and unaffected by YouTube bot IP blocks)
+  // Mode 2: AI Story & Video Script Generator State (Option 1)
   // ----------------------------------------------------
-  const [sttTab, setSttTab] = useState<'url' | 'upload'>('upload');
-  const [videoUrl, setVideoUrl] = useState('');
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [isSttLoading, setIsSttLoading] = useState(false);
-  const [sttStatus, setSttStatus] = useState('');
-  const [sttError, setSttError] = useState('');
-  const [sttResult, setSttResult] = useState<TranscribeResult | null>(null);
+  const [scriptTopic, setScriptTopic] = useState('');
+  const [scriptGenre, setScriptGenre] = useState('horror');
+  const [scriptDuration, setScriptDuration] = useState('2-3min');
+  const [isScriptLoading, setIsScriptLoading] = useState(false);
+  const [scriptError, setScriptError] = useState('');
+  const [generatedScript, setGeneratedScript] = useState<ScriptResult | null>(null);
 
   // Common UI State
   const [copiedType, setCopiedType] = useState<string | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Adsterra Direct Link provided by user: https://omg10.com/4/11846053
   const adsterraDirectLink = 'https://omg10.com/4/11846053';
@@ -92,7 +82,6 @@ export const App: React.FC = () => {
   }, []);
 
   const triggerMonetizationAd = () => {
-    // Show in-app ad dialog directly inside the app! NEVER use window.open to external web
     setShowInAppAdModal(true);
   };
 
@@ -142,70 +131,46 @@ export const App: React.FC = () => {
   };
 
   // ----------------------------------------------------
-  // Video to SRT Execution
+  // AI Story & Video Script Generation (Option 1)
   // ----------------------------------------------------
-  const handleTranscribeUrl = async (e: React.FormEvent) => {
+  const handleGenerateScript = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!videoUrl.trim()) return;
+    if (!scriptTopic.trim()) return;
 
-    setIsSttLoading(true);
-    setSttError('');
-    setSttResult(null);
-    setSttStatus('ဗီဒီယို လင့်ခ်မှ အသံဖိုင်ကို ဒေါင်းလုဒ်ရယူနေပါသည်...');
+    setIsScriptLoading(true);
+    setScriptError('');
+    setGeneratedScript(null);
     triggerMonetizationAd();
 
     try {
-      setSttStatus('AI က စကားသံများကို နားထောင်ပြီး SRT စာတန်းထိုး တွက်ချက်နေပါသည်...');
-      const res = await fetch('/api/transcribe-url', {
+      const res = await fetch('/api/generate-story-script', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: videoUrl.trim() })
+        body: JSON.stringify({
+          topic: scriptTopic.trim(),
+          genre: scriptGenre,
+          duration: scriptDuration
+        })
       });
 
       const data = await res.json();
       if (!res.ok) {
-        throw new Error(data.error || 'Transcription failed');
+        throw new Error(data.error || 'Failed to generate script');
       }
 
-      setSttResult(data);
+      setGeneratedScript(data);
     } catch (err: any) {
-      setSttError(err.message || 'ဗီဒီယိုမှ စကားသံကို ထုတ်ယူရာတွင် အမှားဖြစ်ပေါ်သွားပါသည်။');
+      setScriptError(err.message || 'ဇာတ်ညွှန်းဖန်တီးရာတွင် ချွတ်ယွင်းချက်ဖြစ်ပေါ်သွားပါသည်။');
     } finally {
-      setIsSttLoading(false);
+      setIsScriptLoading(false);
     }
   };
 
-  const handleTranscribeFile = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedFile) return;
-
-    setIsSttLoading(true);
-    setSttError('');
-    setSttResult(null);
-    setSttStatus('မီဒီယာဖိုင်ကို ဆာဗာသို့ တင်ပို့နေပါသည်...');
-    triggerMonetizationAd();
-
-    try {
-      const formData = new FormData();
-      formData.append('mediaFile', selectedFile);
-
-      setSttStatus('AI က မူရင်းစကားသံများကို မီလီစက္ကန့်မလွဲ နားထောင်ပြီး SRT စာတန်းထိုး ရေးဖွဲ့နေပါသည်...');
-      const res = await fetch('/api/transcribe-upload', {
-        method: 'POST',
-        body: formData
-      });
-
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.error || 'File transcription failed');
-      }
-
-      setSttResult(data);
-    } catch (err: any) {
-      setSttError(err.message || 'ဖိုင်မှ အသံကို စာတန်းထိုး ထုတ်ယူရာတွင် အမှားဖြစ်ပေါ်သွားပါသည်။');
-    } finally {
-      setIsSttLoading(false);
-    }
+  // Transfer generated script directly to TTS Engine with one click!
+  const sendScriptToTTS = (scriptContent: string) => {
+    setTtsText(scriptContent);
+    setMainMode('tts');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const handleCopy = (text: string, type: string) => {
@@ -225,6 +190,15 @@ export const App: React.FC = () => {
     document.body.removeChild(element);
   };
 
+  const predefinedGenres = [
+    { id: 'horror', label: 'သရဲ / ထိတ်လန့်ဖွယ် 👻', placeholder: 'ဥပမာ - ညသန်းခေါင် အဝေးပြေးလမ်းမပေါ်က ထူးဆန်းသော ကားကြုံခရီးသည်' },
+    { id: 'motivation', label: 'စိတ်ခွန်အားဖြည့် 💪', placeholder: 'ဥပမာ - စိတ်ဓာတ်ကျနေချိန် ပြန်လည်ရုန်းထနိုင်မည့် စိတ်ခွန်အားပေး စကားများ' },
+    { id: 'tech', label: 'နည်းပညာ / AI ဗဟုသုတ 💻', placeholder: 'ဥပမာ - အနာဂတ်တွင် လူသားများကို အံ့အားသင့်စေမည့် AI စနစ်သစ်များ' },
+    { id: 'history', label: 'သမိုင်းကြောင်း / ထူးခြားဖြစ်ရပ်များ 🏛️', placeholder: 'ဥပမာ - ပျောက်ဆုံးသွားသော ရှေးဟောင်း ရွှေရောင်မြို့တော်ကြီး၏ လျှို့ဝှက်ချက်' },
+    { id: 'fun-facts', label: 'စိတ်ဝင်စားဖွယ်ရာ ဗဟုသုတ 💡', placeholder: 'ဥပမာ - ကမ္ဘာပေါ်မှာ လူတွေမသိသေးတဲ့ အလွန်ထူးဆန်းသော တိရစ္ဆာန်များ' },
+    { id: 'bedtime-story', label: 'ပုံပြင် / ဒဏ္ဍာရီ 🌙', placeholder: 'ဥပမာ - သစ်တောနက်ကြီးထဲက မှော်သစ်ပင်နှင့် ရိုးသားသော သစ်ခုတ်သမား' },
+  ];
+
   return (
     <div className="min-h-screen bg-[#0d0f15] text-slate-100 flex flex-col font-sans selection:bg-indigo-500 selection:text-white">
       {/* Header */}
@@ -237,11 +211,11 @@ export const App: React.FC = () => {
             <h1 className="text-base lg:text-lg font-bold tracking-tight text-white flex items-center gap-2">
               VoiceMaster Studio
               <span className="text-[10px] font-semibold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-2 py-0.5 rounded-full">
-                10k Chars • 9 Human Voices • SRT Sync
+                10k Chars • Real Human TTS • AI Scriptwriter
               </span>
             </h1>
             <p className="text-xs text-slate-400 hidden sm:block">
-              လူအစစ်အသံ Text-to-Speech (စာလုံးရေ ၁၀,၀၀၀) + Video to SRT စာတန်းထိုးစနစ်
+              လူအစစ်အသံ Text-to-Speech (စာလုံးရေ ၁၀,၀၀၀) + YouTube/TikTok ဇာတ်လမ်းဇာတ်ညွှန်း ရေးဖွဲ့စနစ်
             </p>
           </div>
         </div>
@@ -274,7 +248,7 @@ export const App: React.FC = () => {
 
       {/* Main Content Area */}
       <main className="flex-1 max-w-4xl w-full mx-auto px-4 py-6 flex flex-col gap-6">
-        {/* Navigation Tabs: Mode 1 (TTS 10k Chars) vs Mode 2 (Video-to-SRT) */}
+        {/* Navigation Tabs: Mode 1 (TTS 10k Chars) vs Mode 2 (AI Story & Script Generator) */}
         <div className="bg-[#151824] p-1.5 rounded-2xl border border-white/10 flex items-center gap-2 max-w-lg mx-auto w-full shadow-lg">
           <button
             onClick={() => setMainMode('tts')}
@@ -285,19 +259,19 @@ export const App: React.FC = () => {
             }`}
           >
             <Volume2 className="w-4 h-4" />
-            <span>Text to Speech (စာလုံး ၁၀,၀၀၀)</span>
+            <span>လူအစစ်အသံ TTS (၁၀,၀၀၀ လုံး)</span>
           </button>
 
           <button
-            onClick={() => setMainMode('stt')}
+            onClick={() => setMainMode('writer')}
             className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-xs sm:text-sm font-bold transition-all ${
-              mainMode === 'stt'
+              mainMode === 'writer'
                 ? 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-lg shadow-indigo-600/30'
                 : 'text-slate-400 hover:text-white hover:bg-white/5'
             }`}
           >
-            <Subtitles className="w-4 h-4" />
-            <span>Video to SRT စာတန်းထိုး</span>
+            <Wand2 className="w-4 h-4" />
+            <span>AI ဇာတ်လမ်း/ဇာတ်ညွှန်း ရေးဖွဲ့စက်</span>
           </button>
         </div>
 
@@ -318,13 +292,16 @@ export const App: React.FC = () => {
                     စက်ရုပ်အသံလုံးဝမပေါက်သော Neural Real Human Voices ဖြင့် စာလုံးရေ ၁၀,၀၀၀ အထိ အသံဖတ်ပေးပါမည်
                   </p>
                 </div>
-                <span className="text-xs font-mono font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 px-2.5 py-1 rounded-lg">
-                  {ttsText.length} / 10,000 စာလုံး
-                </span>
+
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-mono text-slate-400">
+                    {ttsText.length} / 10,000 လုံး
+                  </span>
+                </div>
               </div>
 
               <form onSubmit={handleGenerateTTS} className="space-y-5">
-                {/* 1. Voice Selection (9 Varieties of Real Human Voices) */}
+                {/* 1. Voice Selector */}
                 <div className="space-y-2">
                   <label className="text-xs font-bold text-slate-300 flex items-center justify-between">
                     <span className="flex items-center gap-1.5">
@@ -374,58 +351,86 @@ export const App: React.FC = () => {
                   <label className="text-xs font-bold text-slate-300 flex items-center justify-between">
                     <span className="flex items-center gap-1.5">
                       <FileText className="w-4 h-4 text-indigo-400" />
-                      <span>ဖတ်ပြစေလိုသော စာသားကို ရိုက်ထည့်ပါ (မြန်မာစာ / English စာလုံး ၁၀,၀၀၀ ထိ ရပါသည်)</span>
+                      <span>ဖတ်ပြစေလိုသော စာသားများ ရိုက်ထည့်ပါ (မြန်မာ သို့မဟုတ် အင်္ဂလိပ်)</span>
                     </span>
+                    <button
+                      type="button"
+                      onClick={() => setTtsText('မင်္ဂလာပါရှင်။ VoiceMaster Studio မှ ကြိုဆိုပါတယ်။ ကျွန်မတို့ စနစ်ဟာ စက်ရုပ်အသံလုံးဝ မဟုတ်ဘဲ လူသားစစ်စစ်ရဲ့ သဘာဝလေယူလေသိမ်းအတိုင်း အလွန်ချောမွေ့ကြည်လင်စွာ ဖတ်ကြားပေးနိုင်ပါတယ်။')}
+                      className="text-[11px] text-indigo-400 hover:text-indigo-300 underline font-normal"
+                    >
+                      နမူနာစာသား စမ်းထည့်ရန်
+                    </button>
                   </label>
 
                   <textarea
-                    rows={7}
+                    rows={8}
                     required
                     value={ttsText}
                     onChange={(e) => setTtsText(e.target.value)}
-                    placeholder="ဒီနေရာတွင် သင်ဖတ်ပြစေလိုသော စာအုပ်၊ ဝတ္ထု၊ သတင်း၊ ဇာတ်လမ်း သို့မဟုတ် စာသားများကို ကူးယူထည့်သွင်းပါ (စာလုံးရေ ၁၀,၀၀၀ အထိ အပြည့်အစုံ ဖတ်ပေးနိုင်ပါသည်)..."
-                    className="w-full bg-[#0d0f17] border border-white/10 rounded-xl p-3.5 text-xs sm:text-sm text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-all font-sans leading-relaxed"
+                    placeholder="ဒီနေရာတွင် ဖတ်ပြစေလိုသော စာများကို ရိုက်ထည့်ပါ သို့မဟုတ် ကူးယူထည့်သွင်းပါ (စာလုံးရေ ၁၀,၀၀၀ အထိ အပြည့်အစုံ ဖတ်ပြပေးပါမည်)..."
+                    className="w-full bg-[#0d0f17] border border-white/10 rounded-2xl p-4 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 leading-relaxed font-sans resize-y"
                   />
                 </div>
 
-                {/* Speed Controls */}
-                <div className="grid grid-cols-2 gap-3 p-3 rounded-xl bg-[#0f121d] border border-white/5">
-                  <div>
-                    <label className="text-[11px] font-semibold text-slate-400 block mb-1">
-                      အသံအမြန်နှုန်း (Speech Speed)
-                    </label>
-                    <select
-                      value={speechRate}
-                      onChange={(e) => setSpeechRate(e.target.value)}
-                      className="w-full bg-[#161a26] border border-white/10 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none"
-                    >
-                      <option value="-20%">ဖြည်းဖြည်း (0.8x Slow)</option>
-                      <option value="+0%">ပုံမှန် အမြန်နှုန်း (1.0x Normal)</option>
-                      <option value="+15%">အနည်းငယ်မြန် (1.15x)</option>
-                      <option value="+25%">မြန်မြန် (1.25x Fast)</option>
-                    </select>
+                {/* 3. Speed & Pitch Controls */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-[#0d0f17] p-3.5 rounded-xl border border-white/5">
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-slate-300 font-semibold flex items-center gap-1.5">
+                        <Clock className="w-3.5 h-3.5 text-indigo-400" />
+                        <span>အသံအမြန်နှုန်း (Speech Speed)</span>
+                      </span>
+                      <span className="text-indigo-400 font-mono font-bold">{speechRate}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {['-20%', '-10%', '+0%', '+10%', '+20%'].map((rate) => (
+                        <button
+                          key={rate}
+                          type="button"
+                          onClick={() => setSpeechRate(rate)}
+                          className={`flex-1 py-1 rounded text-[11px] font-bold transition-all ${
+                            speechRate === rate
+                              ? 'bg-indigo-600 text-white shadow'
+                              : 'bg-white/5 text-slate-400 hover:bg-white/10'
+                          }`}
+                        >
+                          {rate === '+0%' ? 'မူလ' : rate}
+                        </button>
+                      ))}
+                    </div>
                   </div>
 
-                  <div>
-                    <label className="text-[11px] font-semibold text-slate-400 block mb-1">
-                      အသံမြင့်/နိမ့် (Pitch)
-                    </label>
-                    <select
-                      value={speechPitch}
-                      onChange={(e) => setSpeechPitch(e.target.value)}
-                      className="w-full bg-[#161a26] border border-white/10 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none"
-                    >
-                      <option value="-5Hz">နက်ရှိုင်းသော အသံ (Deep)</option>
-                      <option value="+0Hz">သဘာဝ အသံ (Natural)</option>
-                      <option value="+5Hz">ကြည်လင်စူးရှသော အသံ (High)</option>
-                    </select>
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-slate-300 font-semibold flex items-center gap-1.5">
+                        <Sliders className="w-3.5 h-3.5 text-indigo-400" />
+                        <span>အသံအနိမ့်အမြင့် (Pitch Tone)</span>
+                      </span>
+                      <span className="text-indigo-400 font-mono font-bold">{speechPitch}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {['-10Hz', '-5Hz', '+0Hz', '+5Hz', '+10Hz'].map((pitch) => (
+                        <button
+                          key={pitch}
+                          type="button"
+                          onClick={() => setSpeechPitch(pitch)}
+                          className={`flex-1 py-1 rounded text-[11px] font-bold transition-all ${
+                            speechPitch === pitch
+                              ? 'bg-indigo-600 text-white shadow'
+                              : 'bg-white/5 text-slate-400 hover:bg-white/10'
+                          }`}
+                        >
+                          {pitch === '+0Hz' ? 'မူလ' : pitch}
+                        </button>
+                      ))}
+                    </div>
                   </div>
                 </div>
 
                 {/* Error Banner */}
                 {ttsError && (
-                  <div className="p-3 rounded-xl bg-rose-950/40 border border-rose-500/30 flex items-start gap-2.5 text-rose-200 text-xs">
-                    <AlertCircle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
+                  <div className="p-3 rounded-xl bg-rose-950/40 border border-rose-500/30 flex items-center gap-2.5 text-xs text-rose-200">
+                    <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
                     <span>{ttsError}</span>
                   </div>
                 )}
@@ -434,106 +439,101 @@ export const App: React.FC = () => {
                 <button
                   type="submit"
                   disabled={isTtsLoading || !ttsText.trim()}
-                  className="w-full py-4 px-4 rounded-xl bg-gradient-to-r from-indigo-600 via-indigo-500 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white text-sm font-bold shadow-xl shadow-indigo-600/30 flex items-center justify-center gap-2 transition-all active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="w-full py-3.5 px-4 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white text-sm font-bold shadow-xl shadow-indigo-600/30 flex items-center justify-center gap-2 transition-all active:scale-[0.99] disabled:opacity-50"
                 >
                   {isTtsLoading ? (
                     <>
-                      <RefreshCw className="w-5 h-5 animate-spin" />
-                      <span>လူအစစ်အသံနှင့် SRT စာတန်းထိုး ထုတ်လုပ်နေပါသည် (ခေတ္တစောင့်ပါ)...</span>
+                      <RefreshCw className="w-4 h-4 animate-spin" />
+                      <span>လူအစစ်အသံနှင့် SRT စာတန်းထိုး ထုတ်လုပ်နေပါသည်...</span>
                     </>
                   ) : (
                     <>
-                      <Volume2 className="w-5 h-5" />
-                      <span>အသံဖိုင် (MP3) နှင့် အချိန်ကိုက် SRT စာတန်းထိုး ထုတ်မည်</span>
+                      <Volume2 className="w-4 h-4" />
+                      <span>လူအစစ်အသံဖြင့် အသံထွက်ပြောင်းမည် (အသံဖိုင် + SRT စာတန်းထိုးပါ ရရှိမည်)</span>
                     </>
                   )}
                 </button>
               </form>
             </div>
 
-            {/* TTS Results Card */}
+            {/* Results Player Section */}
             {ttsResult && (
               <div 
                 ref={resultsSectionRef}
-                className="bg-[#151926] border border-emerald-500/30 rounded-2xl p-5 sm:p-6 shadow-2xl space-y-5 animate-in fade-in slide-in-from-bottom-4 duration-300"
+                className="bg-[#151926] border border-indigo-500/30 rounded-2xl p-5 sm:p-6 shadow-2xl space-y-5 animate-in fade-in duration-300"
               >
                 <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-4 border-b border-white/10">
                   <div>
                     <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 text-[11px] font-bold border border-emerald-500/20 mb-1">
                       <CheckCircle2 className="w-3.5 h-3.5" />
-                      <span>လူအစစ်အသံ MP3 & SRT အောင်မြင်စွာ ရရှိပါပြီ!</span>
+                      <span>အသံဖိုင်နှင့် SRT အောင်မြင်စွာ ထွက်ရှိပါပြီ</span>
                     </div>
-                    <h3 className="text-sm font-bold text-white">
-                      ဖတ်ပြထားသော စာလုံးရေ: {ttsResult.characterCount} လုံး
+                    <h3 className="text-base font-bold text-white flex items-center gap-2">
+                      <span>{voices.find(v => v.id === ttsResult.voiceUsed)?.name || ttsResult.voiceUsed} ၏ အသံထွက်</span>
+                      <span className="text-xs font-normal text-slate-400 font-mono">
+                        ({ttsResult.characterCount} Chars)
+                      </span>
                     </h3>
                   </div>
 
-                  {/* Downloads */}
-                  <div className="flex items-center gap-2 w-full sm:w-auto">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <button
                       onClick={() => {
                         triggerMonetizationAd();
                         const a = document.createElement('a');
                         a.href = ttsResult.audioUrl;
-                        a.download = `voice_narration_${Date.now()}.mp3`;
-                        document.body.appendChild(a);
+                        a.download = `VoiceMaster_${Date.now()}.mp3`;
                         a.click();
-                        document.body.removeChild(a);
                       }}
-                      className="flex-1 sm:flex-initial px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-lg shadow-emerald-600/30 transition-all active:scale-95"
+                      className="px-4 py-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs flex items-center gap-1.5 shadow-lg shadow-emerald-600/30 active:scale-95"
                     >
                       <Download className="w-4 h-4" />
                       <span>Download .MP3</span>
                     </button>
 
-                    <button
-                      onClick={() => downloadFile(ttsResult.srt, `subtitles_${Date.now()}.srt`, 'text/plain;charset=utf-8')}
-                      className="px-3.5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs flex items-center gap-1.5 shadow-lg shadow-indigo-600/30 transition-all active:scale-95"
-                    >
-                      <Subtitles className="w-4 h-4" />
-                      <span>Download .SRT</span>
-                    </button>
+                    {ttsResult.srt && (
+                      <button
+                        onClick={() => downloadFile(ttsResult.srt, `subtitles_${Date.now()}.srt`, 'text/plain;charset=utf-8')}
+                        className="px-3.5 py-2 rounded-xl bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 font-bold text-xs flex items-center gap-1.5 border border-indigo-500/30 active:scale-95"
+                      >
+                        <Subtitles className="w-4 h-4" />
+                        <span>Download .SRT</span>
+                      </button>
+                    )}
                   </div>
                 </div>
 
-                {/* Audio Player */}
-                <div className="p-4 rounded-xl bg-[#0d0f17] border border-white/10 space-y-2">
-                  <div className="text-xs font-bold text-slate-300 flex items-center justify-between">
-                    <span>အသံဖိုင် ချက်ချင်း ဖွင့်နားထောင်ရန် -</span>
-                  </div>
+                {/* Audio Player Container */}
+                <div className="bg-[#0c0e14] p-4 rounded-xl border border-white/10 flex flex-col gap-3">
                   <audio
                     ref={audioPlayerRef}
-                    controls
                     src={ttsResult.audioUrl}
-                    className="w-full h-10 rounded-lg outline-none"
+                    controls
+                    className="w-full h-11"
                     onPlay={() => setIsPlayingAudio(true)}
                     onPause={() => setIsPlayingAudio(false)}
+                    onEnded={() => setIsPlayingAudio(false)}
                   />
+                  <p className="text-[11px] text-slate-400 text-center">
+                    အသံဖိုင်ကို တိုက်ရိုက် နားထောင်နိုင်ပြီး အပေါ်က Download .MP3 ခလုတ်ဖြင့် သိမ်းဆည်းနိုင်ပါသည်
+                  </p>
                 </div>
 
-                {/* Subtitle SRT Content */}
+                {/* Synchronized SRT Subtitles */}
                 {ttsResult.srt && (
                   <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
-                        <Clock className="w-3.5 h-3.5 text-indigo-400" />
-                        <span>အချိန်ကိုက် SRT စာတန်းထိုးများ (Timestamps Synchronized)</span>
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="font-bold text-slate-300 flex items-center gap-1.5">
+                        <Subtitles className="w-4 h-4 text-indigo-400" />
+                        <span>အချိန်ကိုက် စာတန်းထိုး (Auto-generated SRT Subtitles)</span>
                       </span>
                       <button
-                        onClick={() => handleCopy(ttsResult.srt, 'srt_tts')}
-                        className="text-xs text-indigo-400 hover:text-indigo-300 flex items-center gap-1"
+                        type="button"
+                        onClick={() => handleCopy(ttsResult.srt, 'srt')}
+                        className="text-[11px] text-indigo-400 hover:text-indigo-300 flex items-center gap-1 font-semibold"
                       >
-                        {copiedType === 'srt_tts' ? (
-                          <>
-                            <Check className="w-3.5 h-3.5 text-emerald-400" />
-                            <span className="text-emerald-400">SRT ကူးယူပြီး!</span>
-                          </>
-                        ) : (
-                          <>
-                            <Copy className="w-3.5 h-3.5" />
-                            <span>Copy SRT</span>
-                          </>
-                        )}
+                        {copiedType === 'srt' ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                        <span>{copiedType === 'srt' ? 'ကူးယူပြီးပါပြီ' : 'SRT ကူးမည်'}</span>
                       </button>
                     </div>
 
@@ -548,204 +548,168 @@ export const App: React.FC = () => {
         )}
 
         {/* ========================================================================= */}
-        {/* MODE 2: VIDEO TO SRT (STT) - YouTube/TikTok Link or File Upload */}
+        {/* MODE 2: AI STORY & VIDEO SCRIPT GENERATOR (Option 1 - 100% Reliable & Viral) */}
         {/* ========================================================================= */}
-        {mainMode === 'stt' && (
+        {mainMode === 'writer' && (
           <div className="space-y-6 animate-in fade-in duration-200">
-            {/* Input Switcher */}
-            <div className="bg-[#151824] p-1.5 rounded-2xl border border-white/10 flex items-center gap-1 max-w-md mx-auto w-full">
-              <button
-                onClick={() => setSttTab('url')}
-                className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs font-bold transition-all ${
-                  sttTab === 'url'
-                    ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/30'
-                    : 'text-slate-400 hover:text-white hover:bg-white/5'
-                }`}
-              >
-                <Link2 className="w-4 h-4" />
-                <span>Video Link ဖြင့် ထည့်ရန်</span>
-              </button>
-              <button
-                onClick={() => setSttTab('upload')}
-                className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs font-bold transition-all ${
-                  sttTab === 'upload'
-                    ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/30'
-                    : 'text-slate-400 hover:text-white hover:bg-white/5'
-                }`}
-              >
-                <Upload className="w-4 h-4" />
-                <span>ဖိုင် တိုက်ရိုက် Upload တင်ရန်</span>
-              </button>
-            </div>
-
             {/* Form */}
-            <div className="bg-[#151926] border border-white/10 rounded-2xl p-5 sm:p-6 shadow-2xl">
-              {sttTab === 'url' ? (
-                <form onSubmit={handleTranscribeUrl} className="space-y-4">
-                  <div className="space-y-2">
-                    <label className="text-xs font-semibold text-slate-300 flex items-center gap-2">
-                      <Video className="w-4 h-4 text-indigo-400" />
-                      <span>ဗီဒီယို လင့်ခ် (YouTube, TikTok, Facebook, etc.)</span>
-                    </label>
-                    <input
-                      type="url"
-                      required
-                      value={videoUrl}
-                      onChange={(e) => setVideoUrl(e.target.value)}
-                      placeholder="https://www.youtube.com/watch?v=... သို့မဟုတ် TikTok link"
-                      className="w-full bg-[#0d0f17] border border-white/10 rounded-xl px-4 py-3 text-xs sm:text-sm text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
-                    />
+            <div className="bg-[#151926] border border-white/10 rounded-2xl p-5 sm:p-6 shadow-2xl space-y-5">
+              <div className="border-b border-white/10 pb-3">
+                <h2 className="text-base font-bold text-white flex items-center gap-2">
+                  <Wand2 className="w-4 h-4 text-purple-400" />
+                  <span>AI ဇာတ်လမ်းနှင့် ဗီဒီယို ဇာတ်ညွှန်း ရေးဖွဲ့စက် (Story & Script Generator)</span>
+                </h2>
+                <p className="text-xs text-slate-400 mt-1">
+                  YouTube, TikTok, Facebook Creator များအတွက် ခေါင်းစဉ်တစ်ခု ပေးရုံဖြင့် ဆွဲဆောင်မှုအပြည့်ရှိသော မြန်မာဇာတ်ညွှန်းကို AI က ချက်ချင်း အစအဆုံး ရေးဖွဲ့ပေးပါမည်
+                </p>
+              </div>
+
+              <form onSubmit={handleGenerateScript} className="space-y-5">
+                {/* 1. Category / Genre Picker */}
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
+                    <BookOpen className="w-4 h-4 text-indigo-400" />
+                    <span>ဇာတ်လမ်း / ဗီဒီယို အမျိုးအစား ရွေးချယ်ပါ</span>
+                  </label>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                    {predefinedGenres.map((g) => {
+                      const isSel = scriptGenre === g.id;
+                      return (
+                        <button
+                          key={g.id}
+                          type="button"
+                          onClick={() => setScriptGenre(g.id)}
+                          className={`p-2.5 rounded-xl border text-xs font-bold text-left transition-all ${
+                            isSel
+                              ? 'bg-indigo-600/25 border-indigo-500 text-white ring-2 ring-indigo-500/30'
+                              : 'bg-[#0d0f17] border-white/10 text-slate-300 hover:border-white/25 hover:text-white'
+                          }`}
+                        >
+                          {g.label}
+                        </button>
+                      );
+                    })}
                   </div>
-
-                  <button
-                    type="submit"
-                    disabled={isSttLoading || !videoUrl.trim()}
-                    className="w-full py-3.5 px-4 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white text-sm font-bold shadow-xl shadow-indigo-600/30 flex items-center justify-center gap-2 transition-all active:scale-[0.99] disabled:opacity-50"
-                  >
-                    {isSttLoading ? (
-                      <>
-                        <RefreshCw className="w-4 h-4 animate-spin" />
-                        <span>AI စာတန်းထိုး ထုတ်လုပ်နေပါသည်...</span>
-                      </>
-                    ) : (
-                      <>
-                        <Sparkles className="w-4 h-4" />
-                        <span>မူရင်းစကားသံ SRT စာတန်းထိုး ထုတ်မည်</span>
-                      </>
-                    )}
-                  </button>
-                </form>
-              ) : (
-                <form onSubmit={handleTranscribeFile} className="space-y-4">
-                  <div 
-                    onClick={() => fileInputRef.current?.click()}
-                    className="border-2 border-dashed border-white/15 hover:border-indigo-500/50 rounded-2xl p-6 sm:p-8 text-center cursor-pointer bg-[#0d0f17]/50 hover:bg-white/[0.02] transition-all flex flex-col items-center justify-center gap-3"
-                  >
-                    <input
-                      ref={fileInputRef}
-                      type="file"
-                      accept="video/*,audio/*,.mp4,.mp3,.wav,.mkv,.m4a"
-                      className="hidden"
-                      onChange={(e) => {
-                        if (e.target.files && e.target.files[0]) {
-                          setSelectedFile(e.target.files[0]);
-                        }
-                      }}
-                    />
-
-                    <div className="w-14 h-14 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400">
-                      <Upload className="w-7 h-7" />
-                    </div>
-
-                    {selectedFile ? (
-                      <span className="text-sm font-bold text-emerald-400 flex items-center gap-1.5">
-                        <CheckCircle2 className="w-4 h-4" /> {selectedFile.name}
-                      </span>
-                    ) : (
-                      <p className="text-xs sm:text-sm font-semibold text-slate-200">
-                        ဒီနေရာကို နှိပ်ပြီး ဗီဒီယို/အော်ဒီယိုဖိုင် ရွေးချယ်ပါ (MP4, MP3, 150MB အထိ)
-                      </p>
-                    )}
-                  </div>
-
-                  <button
-                    type="submit"
-                    disabled={isSttLoading || !selectedFile}
-                    className="w-full py-3.5 px-4 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white text-sm font-bold shadow-xl shadow-indigo-600/30 flex items-center justify-center gap-2 transition-all active:scale-[0.99] disabled:opacity-50"
-                  >
-                    {isSttLoading ? (
-                      <>
-                        <RefreshCw className="w-4 h-4 animate-spin" />
-                        <span>AI စာတန်းထိုး ထုတ်လုပ်နေပါသည်...</span>
-                      </>
-                    ) : (
-                      <>
-                        <Sparkles className="w-4 h-4" />
-                        <span>ဖိုင်ထဲက စကားသံများကို SRT စာတန်းထိုး ပြောင်းမည်</span>
-                      </>
-                    )}
-                  </button>
-                </form>
-              )}
-
-              {/* Status / Error */}
-              {isSttLoading && (
-                <div className="mt-4 p-3 rounded-xl bg-indigo-950/40 border border-indigo-500/30 flex items-center gap-3 text-xs text-indigo-200">
-                  <RefreshCw className="w-4 h-4 animate-spin text-indigo-400" />
-                  <span>{sttStatus}</span>
                 </div>
-              )}
-              {sttError && (
-                <div className="mt-4 p-4 rounded-xl bg-rose-950/40 border border-rose-500/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs text-rose-200">
-                  <div className="flex items-start gap-2.5">
-                    <AlertCircle className="w-5 h-5 text-rose-400 shrink-0 mt-0.5" />
-                    <span className="leading-relaxed">{sttError}</span>
+
+                {/* 2. Topic Input */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-300 flex items-center justify-between">
+                    <span className="flex items-center gap-1.5">
+                      <Lightbulb className="w-4 h-4 text-amber-400" />
+                      <span>ဇာတ်လမ်း ခေါင်းစဉ် သို့မဟုတ် အကြောင်းအရာ ရိုက်ထည့်ပါ</span>
+                    </span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={scriptTopic}
+                    onChange={(e) => setScriptTopic(e.target.value)}
+                    placeholder={predefinedGenres.find(g => g.id === scriptGenre)?.placeholder || 'ဥပမာ - ညသန်းခေါင် ထူးဆန်းသော ဖြစ်ရပ်'}
+                    className="w-full bg-[#0d0f17] border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
+                  />
+                </div>
+
+                {/* 3. Duration Selector */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
+                    <Clock className="w-4 h-4 text-indigo-400" />
+                    <span>ခန့်မှန်း ကြာချိန် ရွေးချယ်ပါ</span>
+                  </label>
+                  <div className="grid grid-cols-3 gap-2">
+                    {[
+                      { id: '1min', label: '၁ မိနစ်စာ (TikTok/Shorts)' },
+                      { id: '2-3min', label: '၂ ~ ၃ မိနစ် (Standard)' },
+                      { id: '5min', label: '၅ မိနစ်အရှည် (Long Story)' }
+                    ].map((d) => (
+                      <button
+                        key={d.id}
+                        type="button"
+                        onClick={() => setScriptDuration(d.id)}
+                        className={`py-2 rounded-xl border text-xs font-bold transition-all ${
+                          scriptDuration === d.id
+                            ? 'bg-purple-600 text-white border-purple-500 shadow'
+                            : 'bg-[#0d0f17] border-white/10 text-slate-400 hover:text-white'
+                        }`}
+                      >
+                        {d.label}
+                      </button>
+                    ))}
                   </div>
-                  {sttTab === 'url' && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setSttError('');
-                        setSttTab('upload');
-                        setTimeout(() => fileInputRef.current?.click(), 100);
-                      }}
-                      className="px-3.5 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-bold shrink-0 transition-all shadow-md flex items-center gap-1.5"
-                    >
-                      <Upload className="w-3.5 h-3.5" />
-                      <span>ဖိုင် တိုက်ရိုက် Upload တင်မည်</span>
-                    </button>
+                </div>
+
+                {/* Error Banner */}
+                {scriptError && (
+                  <div className="p-3 rounded-xl bg-rose-950/40 border border-rose-500/30 flex items-center gap-2 text-xs text-rose-200">
+                    <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
+                    <span>{scriptError}</span>
+                  </div>
+                )}
+
+                {/* Submit Button */}
+                <button
+                  type="submit"
+                  disabled={isScriptLoading || !scriptTopic.trim()}
+                  className="w-full py-3.5 px-4 rounded-xl bg-gradient-to-r from-purple-600 via-indigo-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white text-sm font-bold shadow-xl shadow-purple-600/30 flex items-center justify-center gap-2 transition-all active:scale-[0.99] disabled:opacity-50"
+                >
+                  {isScriptLoading ? (
+                    <>
+                      <RefreshCw className="w-4 h-4 animate-spin" />
+                      <span>AI က စိတ်ဝင်စားဖွယ် ဇာတ်ညွှန်းကို ရေးဖွဲ့နေပါသည်...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Wand2 className="w-4 h-4" />
+                      <span>AI ဖြင့် ဇာတ်ညွှန်း ရေးဖွဲ့မည် (Generate Viral Script)</span>
+                    </>
                   )}
-                </div>
-              )}
+                </button>
+              </form>
             </div>
 
-            {/* STT Results */}
-            {sttResult && (
-              <div className="bg-[#151926] border border-emerald-500/30 rounded-2xl p-5 sm:p-6 shadow-2xl space-y-5 animate-in fade-in duration-300">
+            {/* Generated Script Results */}
+            {generatedScript && (
+              <div className="bg-[#151926] border border-purple-500/30 rounded-2xl p-5 sm:p-6 shadow-2xl space-y-5 animate-in fade-in duration-300">
                 <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-4 border-b border-white/10">
                   <div>
-                    <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 text-[11px] font-bold border border-emerald-500/20 mb-1">
-                      <CheckCircle2 className="w-3.5 h-3.5" />
-                      <span>SRT စာတန်းထိုး အောင်မြင်စွာ ရရှိပါပြီ!</span>
+                    <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-purple-500/10 text-purple-300 text-[11px] font-bold border border-purple-500/20 mb-1">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-purple-400" />
+                      <span>ဇာတ်ညွှန်း အောင်မြင်စွာ ရေးဖွဲ့ပြီးပါပြီ</span>
                     </div>
-                    <h3 className="text-base font-bold text-white">
-                      {sttResult.title || 'Extracted Subtitles'}
+                    <h3 className="text-lg font-bold text-white">
+                      {generatedScript.title}
                     </h3>
+                    <p className="text-xs text-slate-400">
+                      ခန့်မှန်းကြာချိန် - {generatedScript.estimatedMinutes} • စာလုံးရေ - {generatedScript.script.length} လုံး
+                    </p>
                   </div>
 
                   <div className="flex items-center gap-2">
+                    {/* One-click Send to Human TTS */}
                     <button
-                      onClick={() => downloadFile(sttResult.srt, 'subtitles.srt', 'text/plain;charset=utf-8')}
-                      className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center gap-1.5 shadow-lg shadow-emerald-600/30 active:scale-95"
+                      onClick={() => sendScriptToTTS(generatedScript.script)}
+                      className="px-4 py-2 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-bold text-xs flex items-center gap-2 shadow-lg shadow-indigo-600/30 active:scale-95"
                     >
-                      <Download className="w-4 h-4" />
-                      <span>Download .SRT</span>
+                      <Volume2 className="w-4 h-4" />
+                      <span>လူအသံစစ်စစ်ဖြင့် အသံထွက်ပြောင်းမည် ➔</span>
                     </button>
                     <button
-                      onClick={() => downloadFile(sttResult.transcript, 'transcript.txt', 'text/plain;charset=utf-8')}
+                      onClick={() => handleCopy(generatedScript.script, 'script')}
                       className="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold text-xs flex items-center gap-1.5 border border-white/10 active:scale-95"
                     >
-                      <FileText className="w-4 h-4" />
-                      <span>Text</span>
+                      {copiedType === 'script' ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
+                      <span>{copiedType === 'script' ? 'ကူးယူပြီး' : 'Copy'}</span>
                     </button>
                   </div>
                 </div>
 
-                {/* Subtitle Segments */}
-                <div className="max-h-72 overflow-y-auto space-y-2 pr-2 scrollbar-thin scrollbar-thumb-slate-700">
-                  {sttResult.subtitles.map((sub, idx) => (
-                    <div
-                      key={idx}
-                      className="p-2.5 rounded-xl bg-[#0f121b] border border-white/5 flex items-start gap-3"
-                    >
-                      <span className="text-[11px] font-mono font-bold text-indigo-400 bg-indigo-500/10 px-2 py-0.5 rounded shrink-0">
-                        {sub.startTime}
-                      </span>
-                      <span className="text-xs text-slate-200 leading-relaxed">
-                        {sub.text}
-                      </span>
-                    </div>
-                  ))}
+                {/* Script Content */}
+                <div className="bg-[#0c0e14] p-4 sm:p-5 rounded-2xl border border-white/10 max-h-96 overflow-y-auto leading-relaxed text-sm text-slate-200 whitespace-pre-line font-sans select-text">
+                  {generatedScript.script}
+                </div>
+
+                <div className="p-3 bg-indigo-950/30 border border-indigo-500/20 rounded-xl flex items-center justify-between text-xs text-indigo-300">
+                  <span>💡 အကြံပြုချက် - အပေါ်ရှိ <b>"လူအသံစစ်စစ်ဖြင့် အသံထွက်ပြောင်းမည်"</b> ခလုတ်ကို နှိပ်လိုက်ပါက ဤဇာတ်ညွှန်းကို မြန်မာလူအသံစစ်စစ် (သီဟ သို့မဟုတ် နီလာ) ဖြင့် အသံဖိုင်နှင့် SRT စာတန်းထိုးပါ ချက်ချင်း ရရှိပါမည်။</span>
                 </div>
               </div>
             )}
@@ -755,7 +719,7 @@ export const App: React.FC = () => {
 
       {/* Footer */}
       <footer className="border-t border-white/10 bg-[#0c0e14] py-4 px-6 text-center text-xs text-slate-500">
-        VoiceMaster Studio • 10k Chars Real Human TTS & Subtitle Engine
+        VoiceMaster Studio • 10k Chars Real Human TTS & AI Viral Scriptwriter
       </footer>
 
       {/* In-App Ad Popup Modal (User stays 100% inside the app!) */}
