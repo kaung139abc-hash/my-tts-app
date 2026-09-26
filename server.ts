@@ -49,21 +49,35 @@ ensureYtDlp();
 
 const ai = new GoogleGenAI({});
 
-// 9 High-fidelity Human Voices (100% Compatible with Burmese and Multilingual Text)
+// High-fidelity Real Human Voices (including Burmese Deep Human Cinema & Narrative Voices)
 export const SUPPORTED_VOICES = [
   {
+    id: 'my-MM-MinKyawDeep',
+    name: '🎙️ မင်းကျော် (Min Kyaw - Deep Human)',
+    gender: 'Male',
+    lang: 'မြန်မာ (Deep Voice)',
+    desc: 'ဩဇာပြည့်ဝပြီး ရင်ထဲစွဲစေသော အသံနက်နက် (Deep Cinema / သရဲဇာတ်လမ်း / မှတ်တမ်းရုပ်ရှင်များအတွက် အကောင်းဆုံး)'
+  },
+  {
     id: 'my-MM-ThihaNeural',
-    name: 'သီဟ (Thiha)',
+    name: '👨 သီဟ (Thiha - Natural)',
     gender: 'Male',
     lang: 'မြန်မာ (Burmese)',
     desc: 'နွေးထွေးတည်ငြိမ်သော လူငယ်/လူလတ်ပိုင်း အမျိုးသား အသံစစ်စစ် (သတင်း၊ ဝတ္ထု၊ ဇာတ်လမ်းပြောရန် အထူးကောင်း)'
   },
   {
     id: 'my-MM-NilarNeural',
-    name: 'နီလာ (Nilar)',
+    name: '👩 နီလာ (Nilar - Natural)',
     gender: 'Female',
     lang: 'မြန်မာ (Burmese)',
     desc: 'ကြည်လင်ချိုသာသော သဘာဝ အမျိုးသမီး အသံစစ်စစ် (ကြော်ငြာ၊ ပညာပေး၊ အသံစာအုပ် Audiobook များအတွက် အထူးကောင်း)'
+  },
+  {
+    id: 'my-MM-DeepNarrator',
+    name: '🎬 မြန်မာဇာတ်ကြောင်းပြော (Deep Studio Narration)',
+    gender: 'Male',
+    lang: 'မြန်မာ (Studio Deep)',
+    desc: 'ရုပ်ရှင်အသံထွက်ကဲ့သို့ အသံအိုးနက်ရှိုင်းပြီး ကြည်လင်ပြတ်သားသော ရုပ်ရှင်စတိုင် မြန်မာလူအသံစစ်စစ်'
   },
   {
     id: 'en-US-AndrewMultilingualNeural',
@@ -159,14 +173,32 @@ app.post('/api/text-to-speech', async (req: Request, res: Response) => {
   try {
     console.log(`Starting Natural Edge TTS with voice: ${voice}, BGM: ${bgm}, length: ${cleanText.length} chars`);
     
+    // Determine underlying base voice and acoustic profile
+    let baseVoice = voice;
+    let isDeepMode = false;
+    let actualPitch = pitch || '+0Hz';
+    let actualRate = rate || '+0%';
+
+    if (voice === 'my-MM-MinKyawDeep') {
+      baseVoice = 'my-MM-ThihaNeural';
+      isDeepMode = true;
+      actualPitch = '-8Hz';
+      if (actualRate === '+0%') actualRate = '-3%';
+    } else if (voice === 'my-MM-DeepNarrator') {
+      baseVoice = 'my-MM-ThihaNeural';
+      isDeepMode = true;
+      actualPitch = '-6Hz';
+      if (actualRate === '+0%') actualRate = '-2%';
+    }
+
     // Function to run Communicate on any text block
     const synthesizeStream = async (txt: string, vName: string): Promise<Buffer> => {
       for (let attempt = 1; attempt <= 3; attempt++) {
         try {
           const comm = new Communicate(txt, {
             voice: vName,
-            rate: rate || '+0%',
-            pitch: pitch || '+0Hz',
+            rate: actualRate,
+            pitch: actualPitch,
           });
           const parts: Buffer[] = [];
           for await (const chunk of comm.stream()) {
@@ -189,7 +221,7 @@ app.post('/api/text-to-speech', async (req: Request, res: Response) => {
     // 1. If text is moderate (< 3,000 chars), try direct single stream
     if (cleanText.length <= 3000) {
       try {
-        audioBuffer = await synthesizeStream(cleanText, voice);
+        audioBuffer = await synthesizeStream(cleanText, baseVoice);
       } catch (directErr) {
         console.warn('Direct stream failed, falling back to chunking:', directErr);
       }
@@ -211,11 +243,11 @@ app.post('/api/text-to-speech', async (req: Request, res: Response) => {
           for (const s of sentences) {
             const sTrim = s.trim();
             if (!sTrim) continue;
-            const sBuf = await synthesizeStream(sTrim, voice);
+            const sBuf = await synthesizeStream(sTrim, baseVoice);
             if (sBuf.length > 0) audioChunks.push(sBuf);
           }
         } else {
-          const pBuf = await synthesizeStream(para, voice);
+          const pBuf = await synthesizeStream(para, baseVoice);
           if (pBuf.length > 0) audioChunks.push(pBuf);
         }
       }
@@ -227,13 +259,32 @@ app.post('/api/text-to-speech', async (req: Request, res: Response) => {
 
     // 3. Fallback to resilient voice if chosen voice failed
     if (audioBuffer.length === 0) {
-      const fallbackVoice = voice === 'my-MM-ThihaNeural' ? 'my-MM-NilarNeural' : 'my-MM-ThihaNeural';
+      const fallbackVoice = baseVoice === 'my-MM-ThihaNeural' ? 'my-MM-NilarNeural' : 'my-MM-ThihaNeural';
       console.log(`Using fallback voice: ${fallbackVoice} for full text`);
       audioBuffer = await synthesizeStream(cleanText, fallbackVoice);
     }
 
     if (audioBuffer.length === 0) {
       throw new Error('Speech synthesis produced no audio data.');
+    }
+
+    // 3.5 Deep Cinema Acoustic Mastering (Rich low-end warmth & broadcast compression for deep human voices)
+    if (isDeepMode && audioBuffer.length > 0) {
+      const tempOrigDeep = `/tmp/raw_deep_${Date.now()}_${Math.random().toString(36).substr(2, 5)}.mp3`;
+      const tempEqDeep = `/tmp/eq_deep_${Date.now()}_${Math.random().toString(36).substr(2, 5)}.mp3`;
+      try {
+        fs.writeFileSync(tempOrigDeep, audioBuffer);
+        const eqFilter = 'equalizer=f=125:width_type=h:width=90:g=4.5,equalizer=f=250:width_type=h:width=120:g=3.0,compand=attacks=0.1:decays=0.3:points=-80/-80|-40/-35|-20/-16|0/-1.5:gain=1.8';
+        await execAsync(`ffmpeg -y -i "${tempOrigDeep}" -af "${eqFilter}" -c:a libmp3lame -b:a 192k "${tempEqDeep}"`);
+        if (fs.existsSync(tempEqDeep)) {
+          audioBuffer = fs.readFileSync(tempEqDeep);
+          try { fs.unlinkSync(tempEqDeep); } catch (_) {}
+        }
+      } catch (deepEqErr) {
+        console.warn('Deep Voice EQ mastering error, continuing with clean audio:', deepEqErr);
+      } finally {
+        try { if (fs.existsSync(tempOrigDeep)) fs.unlinkSync(tempOrigDeep); } catch (_) {}
+      }
     }
 
     // 4. BGM Audio Mixing (Natural ambient music mixed underneath human speech)

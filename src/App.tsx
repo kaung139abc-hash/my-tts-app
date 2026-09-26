@@ -59,7 +59,7 @@ export const App: React.FC = () => {
   const [ttsText, setTtsText] = useState('');
   const [voices, setVoices] = useState<VoiceItem[]>([]);
   const [bgmTracks, setBgmTracks] = useState<BgmItem[]>([]);
-  const [selectedVoice, setSelectedVoice] = useState('my-MM-ThihaNeural');
+  const [selectedVoice, setSelectedVoice] = useState('my-MM-MinKyawDeep');
   const [selectedBgm, setSelectedBgm] = useState('none');
   const [bgmVolume, setBgmVolume] = useState(0.18);
   const [speechRate, setSpeechRate] = useState('+0%');
