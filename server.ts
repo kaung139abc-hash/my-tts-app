@@ -275,29 +275,29 @@ async function transcribeAudioToSRT(audioFilePath: string, originalName: string,
   const base64Audio = fileBuffer.toString('base64');
   const targetMime = mimeType.startsWith('video') ? 'video/mp4' : 'audio/mp3';
 
-  const prompt = `You are an expert audio/video transcriber and subtitle generator.
-Listen carefully to every word spoken in this audio/video.
-Transcribe accurately in the exact language spoken (Myanmar, English, etc).
-Return structured subtitle data with accurate start/end timestamps and continuous transcript text.
+  const prompt = `You are a world-class professional subtitle generator and transcriber specializing in Burmese (Myanmar) and multilingual audio/video.
+Your mission is to produce 100% faithful, word-by-word accurate subtitles matching exact speech timings.
 
-Respond strictly in valid JSON with this schema:
+Instructions:
+1. Listen thoroughly to the entire media from the very first second to the last. Do not summarize or skip any parts, especially in long recordings.
+2. Transcribe in authentic Unicode Myanmar script (if Burmese is spoken) or the actual spoken language. Ensure correct Burmese spelling and grammatical boundaries.
+3. Every subtitle cue MUST have precise start and end timestamps in standard SRT time format: "HH:MM:SS,mmm" (e.g. 00:01:23,450).
+4. Synchronize each line tightly with the speaker's vocal pace (typically 2 to 6 seconds per subtitle line, containing 1 natural spoken clause).
+5. Output structured JSON matching the schema.
+
+Schema:
 {
   "detectedLanguage": "string (e.g. Myanmar, English, etc.)",
-  "fullTranscript": "string (complete continuous text transcript)",
+  "fullTranscript": "string (continuous complete transcript)",
   "subtitles": [
     {
       "index": 1,
       "startTime": "00:00:01,200",
       "endTime": "00:00:04,500",
-      "text": "spoken text phrase"
+      "text": "spoken phrase"
     }
   ]
-}
-
-Rules:
-1. Break subtitles naturally (1-2 lines per timestamp).
-2. Timestamps must strictly match the speaker's true timings.
-3. Transcribe only what is truly spoken.`;
+}`;
 
   const audioPart = {
     inlineData: {
