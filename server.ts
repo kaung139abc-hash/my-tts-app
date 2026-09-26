@@ -49,7 +49,7 @@ ensureYtDlp();
 
 const ai = new GoogleGenAI({});
 
-// 9 High-fidelity Human Voices (Neural Real Human Voices)
+// 9 High-fidelity Human Voices (100% Compatible with Burmese and Multilingual Text)
 export const SUPPORTED_VOICES = [
   {
     id: 'my-MM-ThihaNeural',
@@ -69,50 +69,50 @@ export const SUPPORTED_VOICES = [
     id: 'en-US-AndrewMultilingualNeural',
     name: 'Andrew (အင်ဒရူး)',
     gender: 'Male',
-    lang: 'English (US / Natural Human)',
+    lang: 'Multilingual / Storyteller',
     desc: 'ရုပ်ရှင်အသံထွက်ကဲ့သို့ သဘာဝကျပြီး သက်ဝင်လှုပ်ရှားသော Deep Storyteller အသံ'
   },
   {
     id: 'en-US-AvaMultilingualNeural',
     name: 'Ava (အေဗာ)',
     gender: 'Female',
-    lang: 'English (US / Natural Human)',
+    lang: 'Multilingual / YouTube Narration',
     desc: 'သဘာဝကျပြီး နားထောင်ရ သက်တောင့်သက်သာရှိသော YouTube Narration အသံ'
   },
   {
     id: 'en-US-BrianMultilingualNeural',
     name: 'Brian (ဘရိုင်ယန်)',
     gender: 'Male',
-    lang: 'English (US / Conversational)',
+    lang: 'Multilingual / Podcast Host',
     desc: 'အပြောစကား အပြန်အလှန် ပုံစံ၊ Podcast နှင့် ဗဟုသုတ ဝေမျှရန် အသင့်တော်ဆုံး'
   },
   {
     id: 'en-US-EmmaMultilingualNeural',
     name: 'Emma (အမ်မာ)',
     gender: 'Female',
-    lang: 'English (US / Storyteller)',
-    desc: 'နူးညံ့ညင်သာသော ဇာတ်လမ်းဖတ်ပြ အသံ'
+    lang: 'Multilingual / Audiobook',
+    desc: 'နူးညံ့ညင်သာသော ဇာတ်လမ်းဖတ်ပြ အမျိုးသမီးအသံ'
   },
   {
-    id: 'en-GB-RyanNeural',
-    name: 'Ryan (ရိုင်ယန်)',
+    id: 'en-AU-WilliamMultilingualNeural',
+    name: 'William (ဝီလျံ)',
     gender: 'Male',
-    lang: 'English (British / UK Accent)',
-    desc: 'ဗြိတိသျှ အသံထွက်စစ်စစ်၊ ခံ့ညားထည်ဝါသော Documentary အသံ'
+    lang: 'Multilingual / Documentary',
+    desc: 'တည်ကြည်လေးနက်ပြီး အာရုံစူးစိုက်စေသော Documentary စတိုင် အမျိုးသားအသံ'
   },
   {
-    id: 'en-GB-SoniaNeural',
-    name: 'Sonia (ဆိုနီယာ)',
+    id: 'fr-FR-RemyMultilingualNeural',
+    name: 'Remy (ရီမီ)',
+    gender: 'Male',
+    lang: 'Multilingual / Warm Voice',
+    desc: 'နူးညံ့သိမ်မွေ့သော သဘာဝအသံ (စိတ်အေးချမ်းစေသော ဇာတ်လမ်းများအတွက်)'
+  },
+  {
+    id: 'fr-FR-VivienneMultilingualNeural',
+    name: 'Vivienne (ဗီဗီယန်)',
     gender: 'Female',
-    lang: 'English (British / UK Accent)',
-    desc: 'ယဉ်ကျေးသန့်ပြန့်သော ဗြိတိသျှ တော်ဝင်လေသံ အသံစစ်စစ်'
-  },
-  {
-    id: 'th-TH-NiwatNeural',
-    name: 'Niwat (နီဝပ်)',
-    gender: 'Male',
-    lang: 'Thai (ထိုင်းဘာသာ)',
-    desc: 'သဘာဝကျသော ထိုင်းအမျိုးသား အသံစစ်စစ်'
+    lang: 'Multilingual / Elegant Female',
+    desc: 'ကြည်လင်ပျော့ပျောင်းသော တော်ဝင်စတိုင် အမျိုးသမီး သဘာဝအသံစစ်စစ်'
   }
 ];
 
@@ -149,9 +149,8 @@ app.post('/api/text-to-speech', async (req: Request, res: Response) => {
   try {
     console.log(`Starting Natural Edge TTS with voice: ${voice}, length: ${cleanText.length} chars`);
     
-    // Function to run Communicate on a text string with automatic retry
-    const synthesizeBlock = async (txt: string, vName: string): Promise<{ audio: Buffer; srt: string }> => {
-      let lastErr: any = null;
+    // Function to run Communicate on any text block
+    const synthesizeStream = async (txt: string, vName: string): Promise<Buffer> => {
       for (let attempt = 1; attempt <= 3; attempt++) {
         try {
           const comm = new Communicate(txt, {
@@ -159,84 +158,44 @@ app.post('/api/text-to-speech', async (req: Request, res: Response) => {
             rate: rate || '+0%',
             pitch: pitch || '+0Hz',
           });
-          const subMaker = new SubMaker();
           const parts: Buffer[] = [];
           for await (const chunk of comm.stream()) {
-            if (chunk.type === 'audio') {
+            if (chunk.type === 'audio' && chunk.data) {
               parts.push(chunk.data);
-            } else if (chunk.type === 'WordBoundary') {
-              try {
-                subMaker.feed(chunk);
-              } catch (_) {}
             }
           }
           const buf = Buffer.concat(parts);
-          if (buf.length > 0) {
-            return {
-              audio: buf,
-              srt: subMaker.getSrt() || ''
-            };
-          }
+          if (buf.length > 0) return buf;
         } catch (err) {
-          lastErr = err;
-          await new Promise(r => setTimeout(r, 150 * attempt));
+          console.warn(`Attempt ${attempt} for voice ${vName} error:`, err);
+          await new Promise(r => setTimeout(r, 200 * attempt));
         }
       }
-      return { audio: Buffer.alloc(0), srt: '' };
+      return Buffer.alloc(0);
     };
 
     let audioBuffer: Buffer = Buffer.alloc(0);
-    let fullSrt = '';
 
-    // If text is moderate (under 2,500 chars), synthesize directly in one clean shot (zero chunking artifacts)
-    if (cleanText.length <= 2500) {
-      try {
-        const result = await synthesizeBlock(cleanText, voice);
-        audioBuffer = result.audio;
-        fullSrt = result.srt;
-      } catch (directErr: any) {
-        console.warn('Direct synthesis failed, falling back:', directErr?.message || directErr);
-      }
+    // 1. Direct Continuous Synthesis (Best for natural human flow up to 10,000 characters)
+    try {
+      audioBuffer = await synthesizeStream(cleanText, voice);
+    } catch (directErr) {
+      console.warn('Direct stream failed:', directErr);
     }
 
-    // If still no audio or text is longer than 2,500 chars, chunk by meaningful paragraphs
+    // 2. If direct synthesis didn't return audio, chunk cleanly by paragraphs and synthesize each full paragraph
     if (audioBuffer.length === 0) {
-      const splitIntoChunks = (str: string, maxLen = 1500): string[] => {
-        const rawBlocks = str.split(/\n+/).map(s => s.trim()).filter(Boolean);
-        const chunks: string[] = [];
-        let curr = '';
+      console.log('Falling back to paragraph-level continuous chunking...');
+      const paragraphs = cleanText
+        .split(/\n+/)
+        .map(p => p.trim())
+        .filter(p => p.length > 0);
 
-        for (const block of rawBlocks) {
-          // Check if block contains actual alphanumeric or letters (not just punctuation)
-          if (!/[a-zA-Z0-9\u1000-\u109F\uAA60-\uAA7F]/.test(block)) {
-            continue;
-          }
-          if ((curr + '\n' + block).length > maxLen) {
-            if (curr.trim()) chunks.push(curr.trim());
-            curr = block;
-          } else {
-            curr = curr ? `${curr}\n${block}` : block;
-          }
-        }
-        if (curr.trim()) chunks.push(curr.trim());
-        return chunks.length > 0 ? chunks : [str];
-      };
-
-      const textChunks = splitIntoChunks(cleanText);
       const audioChunks: Buffer[] = [];
-
-      for (const chunkText of textChunks) {
-        if (!chunkText || !/[a-zA-Z0-9\u1000-\u109F]/.test(chunkText)) continue;
-        try {
-          const resBlock = await synthesizeBlock(chunkText, voice);
-          if (resBlock.audio.length > 0) {
-            audioChunks.push(resBlock.audio);
-            if (resBlock.srt) {
-              fullSrt += (fullSrt ? '\n\n' : '') + resBlock.srt;
-            }
-          }
-        } catch (cErr: any) {
-          console.warn('Chunk synthesis error:', cErr?.message || cErr);
+      for (const para of paragraphs) {
+        const pBuf = await synthesizeStream(para, voice);
+        if (pBuf.length > 0) {
+          audioChunks.push(pBuf);
         }
       }
 
@@ -245,13 +204,11 @@ app.post('/api/text-to-speech', async (req: Request, res: Response) => {
       }
     }
 
-    // Ultimate fallback if chosen voice temporarily failed
+    // 3. Fallback to resilient voice if chosen voice is temporarily unresponsive
     if (audioBuffer.length === 0) {
-      const fallbackVoice = voice === 'my-MM-ThihaNeural' ? 'my-MM-NilarNeural' : 'en-US-AndrewMultilingualNeural';
-      console.log(`Using resilient fallback voice: ${fallbackVoice}`);
-      const fallbackRes = await synthesizeBlock(cleanText.slice(0, 1500), fallbackVoice);
-      audioBuffer = fallbackRes.audio;
-      fullSrt = fallbackRes.srt;
+      const fallbackVoice = voice === 'my-MM-ThihaNeural' ? 'my-MM-NilarNeural' : 'my-MM-ThihaNeural';
+      console.log(`Using fallback voice: ${fallbackVoice} for full text`);
+      audioBuffer = await synthesizeStream(cleanText, fallbackVoice);
     }
 
     if (audioBuffer.length === 0) {
@@ -265,7 +222,6 @@ app.post('/api/text-to-speech', async (req: Request, res: Response) => {
       success: true,
       audioUrl: audioDataUrl,
       audioBytes: audioBuffer.length,
-      srt: fullSrt,
       characterCount: cleanText.length,
       voiceUsed: voice,
     });

@@ -17,7 +17,6 @@ interface VoiceItem {
 
 interface TTSResult {
   audioUrl: string;
-  srt: string;
   characterCount: number;
   voiceUsed: string;
 }
@@ -444,12 +443,12 @@ export const App: React.FC = () => {
                   {isTtsLoading ? (
                     <>
                       <RefreshCw className="w-4 h-4 animate-spin" />
-                      <span>လူအစစ်အသံနှင့် SRT စာတန်းထိုး ထုတ်လုပ်နေပါသည်...</span>
+                      <span>လူအစစ်အသံ ထုတ်လုပ်နေပါသည် (စာသားအပြည့်အစုံ)...</span>
                     </>
                   ) : (
                     <>
                       <Volume2 className="w-4 h-4" />
-                      <span>လူအစစ်အသံဖြင့် အသံထွက်ပြောင်းမည် (အသံဖိုင် + SRT စာတန်းထိုးပါ ရရှိမည်)</span>
+                      <span>လူအစစ်အသံဖြင့် အသံထွက်ပြောင်းမည် (MP3 အသံဖိုင် ရယူမည်)</span>
                     </>
                   )}
                 </button>
@@ -466,12 +465,12 @@ export const App: React.FC = () => {
                   <div>
                     <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 text-[11px] font-bold border border-emerald-500/20 mb-1">
                       <CheckCircle2 className="w-3.5 h-3.5" />
-                      <span>အသံဖိုင်နှင့် SRT အောင်မြင်စွာ ထွက်ရှိပါပြီ</span>
+                      <span>အသံဖိုင် အပြည့်အစုံ အောင်မြင်စွာ ထွက်ရှိပါပြီ</span>
                     </div>
                     <h3 className="text-base font-bold text-white flex items-center gap-2">
                       <span>{voices.find(v => v.id === ttsResult.voiceUsed)?.name || ttsResult.voiceUsed} ၏ အသံထွက်</span>
                       <span className="text-xs font-normal text-slate-400 font-mono">
-                        ({ttsResult.characterCount} Chars)
+                        ({ttsResult.characterCount} စာလုံးရေ အပြည့်)
                       </span>
                     </h3>
                   </div>
@@ -490,16 +489,6 @@ export const App: React.FC = () => {
                       <Download className="w-4 h-4" />
                       <span>Download .MP3</span>
                     </button>
-
-                    {ttsResult.srt && (
-                      <button
-                        onClick={() => downloadFile(ttsResult.srt, `subtitles_${Date.now()}.srt`, 'text/plain;charset=utf-8')}
-                        className="px-3.5 py-2 rounded-xl bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 font-bold text-xs flex items-center gap-1.5 border border-indigo-500/30 active:scale-95"
-                      >
-                        <Subtitles className="w-4 h-4" />
-                        <span>Download .SRT</span>
-                      </button>
-                    )}
                   </div>
                 </div>
 
@@ -515,33 +504,9 @@ export const App: React.FC = () => {
                     onEnded={() => setIsPlayingAudio(false)}
                   />
                   <p className="text-[11px] text-slate-400 text-center">
-                    အသံဖိုင်ကို တိုက်ရိုက် နားထောင်နိုင်ပြီး အပေါ်က Download .MP3 ခလုတ်ဖြင့် သိမ်းဆည်းနိုင်ပါသည်
+                    အသံဖိုင်ကို တိုက်ရိုက် နားထောင်နိုင်ပြီး Download .MP3 ခလုတ်ဖြင့် သိမ်းဆည်းနိုင်ပါသည်
                   </p>
                 </div>
-
-                {/* Synchronized SRT Subtitles */}
-                {ttsResult.srt && (
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="font-bold text-slate-300 flex items-center gap-1.5">
-                        <Subtitles className="w-4 h-4 text-indigo-400" />
-                        <span>အချိန်ကိုက် စာတန်းထိုး (Auto-generated SRT Subtitles)</span>
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => handleCopy(ttsResult.srt, 'srt')}
-                        className="text-[11px] text-indigo-400 hover:text-indigo-300 flex items-center gap-1 font-semibold"
-                      >
-                        {copiedType === 'srt' ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-                        <span>{copiedType === 'srt' ? 'ကူးယူပြီးပါပြီ' : 'SRT ကူးမည်'}</span>
-                      </button>
-                    </div>
-
-                    <pre className="p-3.5 rounded-xl bg-[#0c0e14] border border-white/10 text-[11px] font-mono text-slate-300 max-h-48 overflow-y-auto leading-relaxed select-text">
-                      {ttsResult.srt}
-                    </pre>
-                  </div>
-                )}
               </div>
             )}
           </div>
@@ -709,7 +674,7 @@ export const App: React.FC = () => {
                 </div>
 
                 <div className="p-3 bg-indigo-950/30 border border-indigo-500/20 rounded-xl flex items-center justify-between text-xs text-indigo-300">
-                  <span>💡 အကြံပြုချက် - အပေါ်ရှိ <b>"လူအသံစစ်စစ်ဖြင့် အသံထွက်ပြောင်းမည်"</b> ခလုတ်ကို နှိပ်လိုက်ပါက ဤဇာတ်ညွှန်းကို မြန်မာလူအသံစစ်စစ် (သီဟ သို့မဟုတ် နီလာ) ဖြင့် အသံဖိုင်နှင့် SRT စာတန်းထိုးပါ ချက်ချင်း ရရှိပါမည်။</span>
+                  <span>💡 အကြံပြုချက် - အပေါ်ရှိ <b>"လူအသံစစ်စစ်ဖြင့် အသံထွက်ပြောင်းမည်"</b> ခလုတ်ကို နှိပ်လိုက်ပါက ဤဇာတ်ညွှန်းစာသား အပြည့်အစုံကို မြန်မာလူအသံစစ်စစ် (သီဟ သို့မဟုတ် နီလာ) ဖြင့် MP3 အသံဖိုင်အပြည့်အစုံ ချက်ချင်း ထုတ်ယူနိုင်ပါမည်။</span>
                 </div>
               </div>
             )}
