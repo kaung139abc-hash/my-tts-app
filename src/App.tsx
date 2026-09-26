@@ -57,9 +57,9 @@ export const App: React.FC = () => {
   const audioPlayerRef = useRef<HTMLAudioElement | null>(null);
 
   // ----------------------------------------------------
-  // Mode 2: Video/Audio to SRT (STT) State
+  // Mode 2: Video/Audio to SRT (STT) State (Default to 'upload' as file upload is 100% reliable and unaffected by YouTube bot IP blocks)
   // ----------------------------------------------------
-  const [sttTab, setSttTab] = useState<'url' | 'upload'>('url');
+  const [sttTab, setSttTab] = useState<'url' | 'upload'>('upload');
   const [videoUrl, setVideoUrl] = useState('');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isSttLoading, setIsSttLoading] = useState(false);
@@ -676,9 +676,25 @@ export const App: React.FC = () => {
                 </div>
               )}
               {sttError && (
-                <div className="mt-4 p-3 rounded-xl bg-rose-950/40 border border-rose-500/30 flex items-center gap-2.5 text-xs text-rose-200">
-                  <AlertCircle className="w-4 h-4 text-rose-400" />
-                  <span>{sttError}</span>
+                <div className="mt-4 p-4 rounded-xl bg-rose-950/40 border border-rose-500/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs text-rose-200">
+                  <div className="flex items-start gap-2.5">
+                    <AlertCircle className="w-5 h-5 text-rose-400 shrink-0 mt-0.5" />
+                    <span className="leading-relaxed">{sttError}</span>
+                  </div>
+                  {sttTab === 'url' && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSttError('');
+                        setSttTab('upload');
+                        setTimeout(() => fileInputRef.current?.click(), 100);
+                      }}
+                      className="px-3.5 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-bold shrink-0 transition-all shadow-md flex items-center gap-1.5"
+                    >
+                      <Upload className="w-3.5 h-3.5" />
+                      <span>ဖိုင် တိုက်ရိုက် Upload တင်မည်</span>
+                    </button>
+                  )}
                 </div>
               )}
             </div>
