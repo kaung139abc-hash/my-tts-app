@@ -71,10 +71,12 @@ export const App: React.FC = () => {
   const [copiedType, setCopiedType] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Adsterra / Monetag Monetization Links
+  // Adsterra / Monetag Monetization Links (Default disabled so it doesn't pop up and annoy user!)
   const [showAdSettings, setShowAdSettings] = useState(false);
-  const [adsterraDirectLink, setAdsterraDirectLink] = useState('https://www.profitablecpmrate.com/example');
-  const [showBannerAds, setShowBannerAds] = useState(true);
+  const [adsterraDirectLink, setAdsterraDirectLink] = useState('');
+  const [showBannerAds, setShowBannerAds] = useState(false);
+
+  const resultsSectionRef = useRef<HTMLDivElement | null>(null);
 
   // Load voices on mount
   useEffect(() => {
@@ -89,6 +91,7 @@ export const App: React.FC = () => {
   }, []);
 
   const triggerMonetizationAd = () => {
+    // Only open if user explicitly configured and enabled their ad link
     if (adsterraDirectLink && adsterraDirectLink.startsWith('http')) {
       try {
         window.open(adsterraDirectLink, '_blank', 'noopener,noreferrer');
@@ -111,7 +114,6 @@ export const App: React.FC = () => {
     setIsTtsLoading(true);
     setTtsError('');
     setTtsResult(null);
-    triggerMonetizationAd();
 
     try {
       const res = await fetch('/api/text-to-speech', {
@@ -131,6 +133,10 @@ export const App: React.FC = () => {
       }
 
       setTtsResult(data);
+      // Auto-scroll directly to player so user immediately sees and hears audio
+      setTimeout(() => {
+        resultsSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }, 150);
     } catch (err: any) {
       setTtsError(err.message || 'အသံထွက်ထုတ်ယူရာတွင် ချွတ်ယွင်းချက် ဖြစ်ပေါ်သွားပါသည်။');
     } finally {
@@ -478,7 +484,10 @@ export const App: React.FC = () => {
 
             {/* TTS Results Card */}
             {ttsResult && (
-              <div className="bg-[#151926] border border-emerald-500/30 rounded-2xl p-5 sm:p-6 shadow-2xl space-y-5 animate-in fade-in slide-in-from-bottom-4 duration-300">
+              <div 
+                ref={resultsSectionRef}
+                className="bg-[#151926] border border-emerald-500/30 rounded-2xl p-5 sm:p-6 shadow-2xl space-y-5 animate-in fade-in slide-in-from-bottom-4 duration-300"
+              >
                 <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-4 border-b border-white/10">
                   <div>
                     <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 text-[11px] font-bold border border-emerald-500/20 mb-1">
