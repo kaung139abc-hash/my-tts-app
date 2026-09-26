@@ -128,7 +128,7 @@ function isValidHttpUrl(stringUrl: string): boolean {
 }
 
 // -------------------------------------------------------------------------------------
-// 1. Text-To-Speech (TTS) + Precise SRT Subtitle Generator (Up to 10,000 Chars per run)
+// 1. Text-To-Speech (TTS) + Unlimited Character Length Synthesis
 // -------------------------------------------------------------------------------------
 app.get('/api/tts-voices', (_req: Request, res: Response) => {
   return res.json({ voices: SUPPORTED_VOICES });
@@ -142,12 +142,9 @@ app.post('/api/text-to-speech', async (req: Request, res: Response) => {
   }
 
   const cleanText = text.trim();
-  if (cleanText.length > 10000) {
-    return res.status(400).json({ error: 'တစ်ကြိမ်လျှင် စာလုံးရေ ၁၀,၀၀၀ (10,000 characters) အထိသာ ခွင့်ပြုထားပါသည်။' });
-  }
 
   try {
-    console.log(`Starting Natural Edge TTS with voice: ${voice}, length: ${cleanText.length} chars`);
+    console.log(`Starting Unlimited Natural Edge TTS with voice: ${voice}, length: ${cleanText.length} chars`);
     
     // Function to run Communicate on any text block
     const synthesizeStream = async (txt: string, vName: string): Promise<Buffer> => {
@@ -176,16 +173,18 @@ app.post('/api/text-to-speech', async (req: Request, res: Response) => {
 
     let audioBuffer: Buffer = Buffer.alloc(0);
 
-    // 1. Direct Continuous Synthesis (Best for natural human flow up to 10,000 characters)
-    try {
-      audioBuffer = await synthesizeStream(cleanText, voice);
-    } catch (directErr) {
-      console.warn('Direct stream failed:', directErr);
+    // 1. If text is moderate (< 3,000 chars), try direct single stream
+    if (cleanText.length <= 3000) {
+      try {
+        audioBuffer = await synthesizeStream(cleanText, voice);
+      } catch (directErr) {
+        console.warn('Direct stream failed, falling back to chunking:', directErr);
+      }
     }
 
-    // 2. If direct synthesis didn't return audio, chunk cleanly by paragraphs and synthesize each full paragraph
+    // 2. Paragraph / Chunk-level Synthesis (Supports Unlimited Characters cleanly)
     if (audioBuffer.length === 0) {
-      console.log('Falling back to paragraph-level continuous chunking...');
+      console.log('Running paragraph-level continuous chunk synthesis for unlimited length...');
       const paragraphs = cleanText
         .split(/\n+/)
         .map(p => p.trim())
@@ -193,9 +192,18 @@ app.post('/api/text-to-speech', async (req: Request, res: Response) => {
 
       const audioChunks: Buffer[] = [];
       for (const para of paragraphs) {
-        const pBuf = await synthesizeStream(para, voice);
-        if (pBuf.length > 0) {
-          audioChunks.push(pBuf);
+        // If an individual paragraph is huge, split by sentences
+        if (para.length > 1500) {
+          const sentences = para.match(/[^။!?\n]+[။!?\n]?/g) || [para];
+          for (const s of sentences) {
+            const sTrim = s.trim();
+            if (!sTrim) continue;
+            const sBuf = await synthesizeStream(sTrim, voice);
+            if (sBuf.length > 0) audioChunks.push(sBuf);
+          }
+        } else {
+          const pBuf = await synthesizeStream(para, voice);
+          if (pBuf.length > 0) audioChunks.push(pBuf);
         }
       }
 
@@ -204,7 +212,7 @@ app.post('/api/text-to-speech', async (req: Request, res: Response) => {
       }
     }
 
-    // 3. Fallback to resilient voice if chosen voice is temporarily unresponsive
+    // 3. Fallback to resilient voice if chosen voice failed
     if (audioBuffer.length === 0) {
       const fallbackVoice = voice === 'my-MM-ThihaNeural' ? 'my-MM-NilarNeural' : 'my-MM-ThihaNeural';
       console.log(`Using fallback voice: ${fallbackVoice} for full text`);

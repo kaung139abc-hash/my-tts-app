@@ -157,17 +157,56 @@ export const App: React.FC = () => {
     setShowInAppAdModal(true);
   };
 
+  const downloadAudioFile = (audioUrl: string, filename: string) => {
+    triggerMonetizationAd();
+    try {
+      if (audioUrl.startsWith('data:')) {
+        // Convert base64 data URL to Blob for 100% reliable direct browser download across all devices
+        const arr = audioUrl.split(',');
+        const mimeMatch = arr[0].match(/:(.*?);/);
+        const mime = mimeMatch ? mimeMatch[1] : 'audio/mp3';
+        const bstr = atob(arr[1]);
+        let n = bstr.length;
+        const u8arr = new Uint8Array(n);
+        while (n--) {
+          u8arr[n] = bstr.charCodeAt(n);
+        }
+        const blob = new Blob([u8arr], { type: mime });
+        const blobUrl = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.style.display = 'none';
+        a.href = blobUrl;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        setTimeout(() => {
+          document.body.removeChild(a);
+          URL.revokeObjectURL(blobUrl);
+        }, 1000);
+      } else {
+        const a = document.createElement('a');
+        a.style.display = 'none';
+        a.href = audioUrl;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        setTimeout(() => {
+          document.body.removeChild(a);
+        }, 1000);
+      }
+    } catch (err) {
+      console.error('Download error:', err);
+      // Fallback
+      window.open(audioUrl, '_blank');
+    }
+  };
+
   // ----------------------------------------------------
-  // Text to Speech Execution (Up to 10,000 characters)
+  // Text to Speech Execution (Unlimited characters)
   // ----------------------------------------------------
   const handleGenerateTTS = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!ttsText.trim()) return;
-
-    if (ttsText.length > 10000) {
-      setTtsError(`စာလုံးရေ ${ttsText.length} လုံး ဖြစ်နေပါသည်။ တစ်ကြိမ်လျှင် ၁၀,၀၀၀ (10,000 characters) အထိသာ ထည့်သွင်းပေးပါခင်ဗျာ။`);
-      return;
-    }
 
     setIsTtsLoading(true);
     setTtsError('');
@@ -340,7 +379,7 @@ export const App: React.FC = () => {
 
       {/* Main Content Area */}
       <main className="flex-1 max-w-4xl w-full mx-auto px-4 py-6 flex flex-col gap-6">
-        {/* Navigation Tabs: Mode 1 (TTS 10k Chars) vs Mode 2 (AI Story Generator) vs Mode 3 (Audio History Library) */}
+        {/* Navigation Tabs: Mode 1 (Unlimited TTS) vs Mode 2 (AI Story Generator) vs Mode 3 (Audio History Library) */}
         <div className="bg-[#151824] p-1.5 rounded-2xl border border-white/10 flex items-center gap-1.5 sm:gap-2 max-w-xl mx-auto w-full shadow-lg">
           <button
             onClick={() => setMainMode('tts')}
@@ -351,7 +390,7 @@ export const App: React.FC = () => {
             }`}
           >
             <Volume2 className="w-4 h-4 shrink-0" />
-            <span className="truncate">လူအစစ် TTS (၁၀,၀၀၀)</span>
+            <span className="truncate">လူအစစ် TTS (အကန့်အသတ်မရှိ)</span>
           </button>
 
           <button
@@ -383,7 +422,7 @@ export const App: React.FC = () => {
         </div>
 
         {/* ========================================================================= */}
-        {/* MODE 1: TEXT-TO-SPEECH (TTS) - 9 Human Voices, 10,000 Chars, SRT Sync */}
+        {/* MODE 1: TEXT-TO-SPEECH (TTS) - Unlimited Chars, 9 Human Voices            */}
         {/* ========================================================================= */}
         {mainMode === 'tts' && (
           <div className="space-y-6 animate-in fade-in duration-200">
@@ -396,13 +435,13 @@ export const App: React.FC = () => {
                     <span>လူအစစ်အသံ Text to Speech Engine</span>
                   </h2>
                   <p className="text-xs text-slate-400">
-                    စက်ရုပ်အသံလုံးဝမပေါက်သော Neural Real Human Voices ဖြင့် စာလုံးရေ ၁၀,၀၀၀ အထိ အသံဖတ်ပေးပါမည်
+                    စက်ရုပ်အသံလုံးဝမပေါက်သော Neural Real Human Voices ဖြင့် စာလုံးရေ အကန့်အသတ်မရှိ (Unlimited) အသံဖတ်ပေးပါမည်
                   </p>
                 </div>
 
                 <div className="flex items-center gap-2">
-                  <span className="text-xs font-mono text-slate-400">
-                    {ttsText.length} / 10,000 လုံး
+                  <span className="text-xs font-mono text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-md">
+                    {ttsText.length} စာလုံး (Unlimited)
                   </span>
                 </div>
               </div>
@@ -586,16 +625,13 @@ export const App: React.FC = () => {
                   <div className="flex items-center gap-2 flex-wrap">
                     <button
                       onClick={() => {
-                        triggerMonetizationAd();
-                        const a = document.createElement('a');
-                        a.href = ttsResult.audioUrl;
-                        a.download = `VoiceMaster_${Date.now()}.mp3`;
-                        a.click();
+                        const vName = voices.find(v => v.id === ttsResult.voiceUsed)?.name || 'VoiceMaster';
+                        downloadAudioFile(ttsResult.audioUrl, `${vName}_Audio_${Date.now()}.mp3`);
                       }}
-                      className="px-4 py-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs flex items-center gap-1.5 shadow-lg shadow-emerald-600/30 active:scale-95"
+                      className="px-4 py-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs flex items-center gap-1.5 shadow-lg shadow-emerald-600/30 active:scale-95 transition-all"
                     >
                       <Download className="w-4 h-4" />
-                      <span>Download .MP3</span>
+                      <span>Download .MP3 (တိုက်ရိုက်ဒေါင်းမည်)</span>
                     </button>
                   </div>
                 </div>
@@ -887,13 +923,9 @@ export const App: React.FC = () => {
                           <audio src={item.audioUrl} controls className="w-full h-8" />
                           <button
                             onClick={() => {
-                              triggerMonetizationAd();
-                              const a = document.createElement('a');
-                              a.href = item.audioUrl!;
-                              a.download = `${item.title}_${Date.now()}.mp3`;
-                              a.click();
+                              downloadAudioFile(item.audioUrl!, `${item.title}_${Date.now()}.mp3`);
                             }}
-                            className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center gap-1 shrink-0 active:scale-95"
+                            className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center gap-1 shrink-0 active:scale-95 transition-all"
                           >
                             <Download className="w-3.5 h-3.5" />
                             <span>MP3</span>
