@@ -4,7 +4,7 @@ import {
   Sparkles, RefreshCw, AlertCircle, DollarSign,
   Languages, Clock, Subtitles, Volume2, Video, CheckCircle2,
   ExternalLink, Layers, ArrowRight, Settings2, Sliders, UserCheck,
-  FileAudio, Info, Mic
+  FileAudio, Info, Mic, X
 } from 'lucide-react';
 
 interface VoiceItem {
@@ -74,6 +74,9 @@ export const App: React.FC = () => {
   // Adsterra Direct Link provided by user: https://omg10.com/4/11846053
   const adsterraDirectLink = 'https://omg10.com/4/11846053';
 
+  // In-App Ad Modal state (so user stays 100% inside this app and never thrown out to browser)
+  const [showInAppAdModal, setShowInAppAdModal] = useState(false);
+
   const resultsSectionRef = useRef<HTMLDivElement | null>(null);
 
   // Load voices on mount
@@ -89,11 +92,8 @@ export const App: React.FC = () => {
   }, []);
 
   const triggerMonetizationAd = () => {
-    if (adsterraDirectLink) {
-      try {
-        window.open(adsterraDirectLink, '_blank', 'noopener,noreferrer');
-      } catch (_) {}
-    }
+    // Show in-app ad dialog directly inside the app! NEVER use window.open to external web
+    setShowInAppAdModal(true);
   };
 
   // ----------------------------------------------------
@@ -253,6 +253,24 @@ export const App: React.FC = () => {
           </span>
         </div>
       </header>
+
+      {/* In-App Native Banner (Inside the app - never opens external tab) */}
+      <div className="w-full bg-[#111420] border-b border-white/5 py-2.5 px-4 flex items-center justify-center">
+        <div className="w-full max-w-2xl bg-gradient-to-r from-indigo-950/60 via-purple-950/60 to-slate-900 border border-indigo-500/20 rounded-xl p-3 flex flex-col sm:flex-row items-center justify-between gap-2.5">
+          <div className="flex items-center gap-2.5">
+            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500 text-black shrink-0">AD</span>
+            <span className="text-xs text-slate-200 font-medium text-center sm:text-left">
+              သင့်အတွက် အထူးအစီအစဉ်များနှင့် ပရိုမိုးရှင်းများကို App အတွင်း ကြည့်ရှုပါ
+            </span>
+          </div>
+          <button
+            onClick={() => setShowInAppAdModal(true)}
+            className="px-3.5 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold shrink-0 transition-all active:scale-95"
+          >
+            ကြည့်ရှုမည်
+          </button>
+        </div>
+      </div>
 
       {/* Main Content Area */}
       <main className="flex-1 max-w-4xl w-full mx-auto px-4 py-6 flex flex-col gap-6">
@@ -723,6 +741,51 @@ export const App: React.FC = () => {
       <footer className="border-t border-white/10 bg-[#0c0e14] py-4 px-6 text-center text-xs text-slate-500">
         VoiceMaster Studio • 10k Chars Real Human TTS & Subtitle Engine
       </footer>
+
+      {/* In-App Ad Popup Modal (User stays 100% inside the app!) */}
+      {showInAppAdModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-[#121520] border border-white/15 rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl flex flex-col max-h-[90vh]">
+            <div className="p-3.5 bg-[#171a29] border-b border-white/10 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500 text-black">
+                  SPONSORED
+                </span>
+                <span className="text-xs font-semibold text-slate-200">
+                  အထူးကြော်ငြာ ကမ်းလှမ်းချက်
+                </span>
+              </div>
+              <button
+                onClick={() => setShowInAppAdModal(false)}
+                className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 transition-colors"
+                title="ပိတ်မည်"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* In-App Ad Content Container */}
+            <div className="flex-1 bg-black min-h-[360px] sm:min-h-[420px] relative">
+              <iframe
+                src={adsterraDirectLink}
+                title="Sponsor Offer"
+                sandbox="allow-scripts allow-same-origin allow-forms"
+                className="w-full h-full min-h-[360px] sm:min-h-[420px] border-none"
+              />
+            </div>
+
+            <div className="p-3 bg-[#121520] border-t border-white/10 flex items-center justify-between text-xs text-slate-400">
+              <span>ကြော်ငြာကို App အတွင်း ကြည့်ရှုနေပါသည်</span>
+              <button
+                onClick={() => setShowInAppAdModal(false)}
+                className="px-4 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold"
+              >
+                ပိတ်မည် (Close)
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
