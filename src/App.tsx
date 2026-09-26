@@ -155,12 +155,19 @@ export const App: React.FC = () => {
   // Load voices and BGM tracks on mount
   useEffect(() => {
     fetch('/api/tts-voices')
-      .then((res) => res.json())
+      .then(async (res) => {
+        const text = await res.text();
+        try {
+          return JSON.parse(text);
+        } catch {
+          return null;
+        }
+      })
       .then((data) => {
-        if (data.voices) {
+        if (data && data.voices) {
           setVoices(data.voices);
         }
-        if (data.bgmTracks) {
+        if (data && data.bgmTracks) {
           setBgmTracks(data.bgmTracks);
         }
       })
@@ -241,8 +248,15 @@ export const App: React.FC = () => {
         })
       });
 
-      const data = await res.json();
-      if (!res.ok) {
+      const responseText = await res.text();
+      let data: any = null;
+      try {
+        data = JSON.parse(responseText);
+      } catch (jsonErr) {
+        throw new Error('ဆာဗာနှင့် ချိတ်ဆက်မှု အဆင်မပြေဖြစ်သွားပါသည်။ ခေတ္တစောင့်ပြီး ပြန်လည် ကြိုးစားပေးပါခင်ဗျာ။');
+      }
+
+      if (!res.ok || !data.success) {
         throw new Error(data.error || 'Text-to-speech generation failed');
       }
 
@@ -295,7 +309,14 @@ export const App: React.FC = () => {
         })
       });
 
-      const data = await res.json();
+      const responseText = await res.text();
+      let data: any = null;
+      try {
+        data = JSON.parse(responseText);
+      } catch (jsonErr) {
+        throw new Error('ဆာဗာနှင့် ချိတ်ဆက်မှု အဆင်မပြေဖြစ်သွားပါသည်။ ခေတ္တစောင့်ပြီး ပြန်လည် ကြိုးစားပေးပါခင်ဗျာ။');
+      }
+
       if (!res.ok) {
         throw new Error(data.error || 'Failed to generate script');
       }
