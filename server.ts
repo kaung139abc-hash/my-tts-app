@@ -148,29 +148,105 @@ app.post('/api/text-to-speech', async (req: Request, res: Response) => {
 
   try {
     console.log(`Starting Natural Edge TTS with voice: ${voice}, length: ${cleanText.length} chars`);
-    const communicate = new Communicate(cleanText, {
-      voice,
-      rate: rate || '+0%',
-      pitch: pitch || '+0Hz',
-    });
+    
+    // Split text into natural paragraphs/sentences if long to guarantee reliable delivery without websocket drop
+    const splitIntoChunks = (str: string, maxLen = 1200): string[] => {
+      if (str.length <= maxLen) return [str];
+      const parts: string[] = [];
+      const sentences = str.split(/(?<=[။!?\n])/);
+      let current = '';
+      for (const s of sentences) {
+        if ((current + s).length > maxLen) {
+          if (current.trim()) parts.push(current.trim());
+          current = s;
+        } else {
+          current += s;
+        }
+      }
+      if (current.trim()) parts.push(current.trim());
+      return parts.length > 0 ? parts : [str];
+    };
 
-    const subMaker = new SubMaker();
+    const textChunks = splitIntoChunks(cleanText, 1000);
     const audioChunks: Buffer[] = [];
+    let fullSrt = '';
 
-    for await (const chunk of communicate.stream()) {
-      if (chunk.type === 'audio') {
-        audioChunks.push(chunk.data);
-      } else if (chunk.type === 'WordBoundary') {
-        subMaker.feed(chunk);
+    // Generate with retry per chunk
+    for (let i = 0; i < textChunks.length; i++) {
+      const chunkText = textChunks[i];
+      let chunkAudio: Buffer | null = null;
+      let chunkSrt = '';
+      let lastErr: any = null;
+
+      // Retry up to 2 times per chunk
+      for (let attempt = 0; attempt < 2; attempt++) {
+        try {
+          const communicate = new Communicate(chunkText, {
+            voice,
+            rate: rate || '+0%',
+            pitch: pitch || '+0Hz',
+          });
+
+          const subMaker = new SubMaker();
+          const curAudioParts: Buffer[] = [];
+
+          for await (const chunk of communicate.stream()) {
+            if (chunk.type === 'audio') {
+              curAudioParts.push(chunk.data);
+            } else if (chunk.type === 'WordBoundary') {
+              try {
+                subMaker.feed(chunk);
+              } catch (_) {}
+            }
+          }
+
+          if (curAudioParts.length > 0) {
+            chunkAudio = Buffer.concat(curAudioParts);
+            chunkSrt = subMaker.getSrt() || '';
+            break;
+          }
+        } catch (e: any) {
+          lastErr = e;
+          // small pause before retry
+          await new Promise(r => setTimeout(r, 200));
+        }
+      }
+
+      if (chunkAudio && chunkAudio.length > 0) {
+        audioChunks.push(chunkAudio);
+        if (chunkSrt) {
+          fullSrt += (fullSrt ? '\n\n' : '') + chunkSrt;
+        }
+      } else {
+        console.warn(`Chunk ${i} failed or empty:`, lastErr);
       }
     }
 
     const audioBuffer = Buffer.concat(audioChunks);
     if (audioBuffer.length === 0) {
-      throw new Error('No audio generated from TTS service.');
+      // Fallback: If selected voice failed due to region or temporary issue, try primary natural fallback
+      const fallbackVoice = voice === 'my-MM-ThihaNeural' ? 'my-MM-NilarNeural' : 'en-US-AndrewMultilingualNeural';
+      console.log(`Retrying with fallback voice: ${fallbackVoice}`);
+      const fallbackComm = new Communicate(cleanText.slice(0, 1000), { voice: fallbackVoice });
+      const fallbackParts: Buffer[] = [];
+      for await (const chunk of fallbackComm.stream()) {
+        if (chunk.type === 'audio') fallbackParts.push(chunk.data);
+      }
+      const fallbackBuffer = Buffer.concat(fallbackParts);
+      if (fallbackBuffer.length > 0) {
+        const base64Audio = fallbackBuffer.toString('base64');
+        return res.json({
+          success: true,
+          audioUrl: `data:audio/mp3;base64,${base64Audio}`,
+          audioBytes: fallbackBuffer.length,
+          srt: '',
+          characterCount: cleanText.length,
+          voiceUsed: fallbackVoice,
+        });
+      }
+      throw new Error('No audio was received from speech synthesis service.');
     }
 
-    const srtContent = subMaker.getSrt() || '';
     const base64Audio = audioBuffer.toString('base64');
     const audioDataUrl = `data:audio/mp3;base64,${base64Audio}`;
 
@@ -178,14 +254,14 @@ app.post('/api/text-to-speech', async (req: Request, res: Response) => {
       success: true,
       audioUrl: audioDataUrl,
       audioBytes: audioBuffer.length,
-      srt: srtContent,
+      srt: fullSrt,
       characterCount: cleanText.length,
       voiceUsed: voice,
     });
   } catch (err: any) {
-    console.error('Edge TTS Error:', err);
+    console.error('Edge TTS Error:', err?.message || err);
     return res.status(500).json({ 
-      error: 'Text-to-Speech ပြုလုပ်ရာတွင် ချွတ်ယွင်းချက် ဖြစ်ပေါ်သွားပါသည်။ ပြန်လည် စမ်းသပ်ပေးပါခင်ဗျာ။' 
+      error: 'Text-to-Speech ပြုလုပ်ရာတွင် အသံဖမ်းယူမှု မအောင်မြင်ပါ။ စာသားတိုတိုဖြင့် သို့မဟုတ် အခြားအသံ ရွေးချယ်၍ ပြန်လည် စမ်းသပ်ပေးပါခင်ဗျာ။' 
     });
   }
 });
