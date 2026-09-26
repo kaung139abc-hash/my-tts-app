@@ -52,7 +52,7 @@ export const App: React.FC = () => {
   // ----------------------------------------------------
   const [scriptTopic, setScriptTopic] = useState('');
   const [scriptGenre, setScriptGenre] = useState('horror');
-  const [scriptDuration, setScriptDuration] = useState('2-3min');
+  const [scriptDuration, setScriptDuration] = useState('long-story');
   const [isScriptLoading, setIsScriptLoading] = useState(false);
   const [scriptError, setScriptError] = useState('');
   const [generatedScript, setGeneratedScript] = useState<ScriptResult | null>(null);
@@ -577,27 +577,33 @@ export const App: React.FC = () => {
 
                 {/* 3. Duration Selector */}
                 <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
-                    <Clock className="w-4 h-4 text-indigo-400" />
-                    <span>ခန့်မှန်း ကြာချိန် ရွေးချယ်ပါ</span>
+                  <label className="text-xs font-bold text-slate-300 flex items-center justify-between">
+                    <span className="flex items-center gap-1.5">
+                      <Clock className="w-4 h-4 text-indigo-400" />
+                      <span>ဇာတ်လမ်း အရှည် ရွေးချယ်ပါ (အရှည်ကြီး အပြည့်အစုံ ရေးပေးမည်)</span>
+                    </span>
+                    <span className="text-[11px] text-purple-400 font-semibold">
+                      ✓ စာပိုဒ်စုံလင်စွာ ထွက်ရှိမည်
+                    </span>
                   </label>
-                  <div className="grid grid-cols-3 gap-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                     {[
-                      { id: '1min', label: '၁ မိနစ်စာ (TikTok/Shorts)' },
-                      { id: '2-3min', label: '၂ ~ ၃ မိနစ် (Standard)' },
-                      { id: '5min', label: '၅ မိနစ်အရှည် (Long Story)' }
+                      { id: 'medium', label: 'အလယ်အလတ် (၃ ~ ၅ မိနစ်စာ)', desc: 'ဆောင်းပါး / ဇာတ်လမ်းတို' },
+                      { id: 'long-story', label: 'အရှည်ကြီး (၅ ~ ၈ မိနစ်စာ)', desc: 'ဝတ္ထုရှည် / YouTube ဗီဒီယို (အကြံပြု)' },
+                      { id: 'epic-story', label: 'အလွန်ရှည် (၈ ~ ၁၂ မိနစ်စာ)', desc: 'အပြည့်အစုံ နားဆင်ရန် ဇာတ်လမ်းရှည်' }
                     ].map((d) => (
                       <button
                         key={d.id}
                         type="button"
                         onClick={() => setScriptDuration(d.id)}
-                        className={`py-2 rounded-xl border text-xs font-bold transition-all ${
+                        className={`p-2.5 rounded-xl border text-left transition-all ${
                           scriptDuration === d.id
-                            ? 'bg-purple-600 text-white border-purple-500 shadow'
-                            : 'bg-[#0d0f17] border-white/10 text-slate-400 hover:text-white'
+                            ? 'bg-purple-600 text-white border-purple-500 shadow-lg shadow-purple-600/30 ring-2 ring-purple-400/40'
+                            : 'bg-[#0d0f17] border-white/10 text-slate-400 hover:text-white hover:border-white/20'
                         }`}
                       >
-                        {d.label}
+                        <span className="block text-xs font-bold text-white mb-0.5">{d.label}</span>
+                        <span className="block text-[10px] opacity-75">{d.desc}</span>
                       </button>
                     ))}
                   </div>

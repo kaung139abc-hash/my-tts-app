@@ -334,30 +334,31 @@ Schema:
 }
 
 // =====================================================================================
-// AI Story & Video Script Generator (Option 1: For YouTube, TikTok, Facebook Creators)
+// AI Story & Video Script Generator (Generates full, rich, long storytelling scripts)
 // =====================================================================================
 app.post('/api/generate-story-script', async (req: Request, res: Response) => {
-  const { topic, genre = 'horror', duration = '3min', targetAudience = 'all', language = 'my' } = req.body;
+  const { topic, genre = 'horror', duration = 'long-story', targetAudience = 'all', language = 'my' } = req.body;
   if (!topic || !topic.trim()) {
     return res.status(400).json({ error: 'ဇာတ်လမ်း သို့မဟုတ် ခေါင်းစဉ်ကို ထည့်သွင်းပေးပါခင်ဗျာ။' });
   }
 
   try {
-    const prompt = `You are a master viral storyteller and video script writer for YouTube, TikTok, and Facebook.
-The user wants an engaging, complete, narration-ready script in Burmese (Myanmar) language based on the following input:
+    const prompt = `You are an acclaimed master viral storyteller, novelist, and video script writer in Myanmar.
+The user wants a LONG, IMMERSIVE, EXTREMELY DETAILED, continuous storytelling narration script in Burmese (Myanmar Unicode) based on:
 
 Topic/Theme: "${topic.trim()}"
-Genre/Category: "${genre}" (e.g., horror/သရဲဇာတ်လမ်း, motivation/စိတ်ခွန်အားဖြည့်, tech/နည်းပညာဗဟုသုတ, history/သမိုင်းကြောင်း, fun-facts/စိတ်ဝင်စားဖွယ်ရာများ, bedtime-story/ပုံပြင်)
-Target Estimated Length: "${duration}"
+Genre: "${genre}" (e.g., horror/သရဲဇာတ်လမ်း, motivation/စိတ်ခွန်အားဖြည့်, tech/နည်းပညာဗဟုသုတ, history/သမိုင်းကြောင်း, fun-facts/စိတ်ဝင်စားဖွယ်ရာများ, bedtime-story/ပုံပြင်)
+Target Story Length: "${duration}" (Write a very long, comprehensive script with rich dialogue, suspense, atmosphere, character details, climax, and emotional depth. Do NOT summarize or write short outlines. Make it a complete, full-length storytelling experience of at least 800 to 2,000 Myanmar words).
 
-Instructions:
-1. Write in natural, gripping, spoken-style Burmese Unicode (စာပေသုံး အလွန်ကျပ်တည်းခြင်းမရှိဘဲ နားထောင်သူ စွဲမက်စေမည့် စကားပြောလေသံစစ်စစ်) that sounds amazing when read by a Text-to-Speech human voice.
-2. Structure the script smoothly with:
-   - Catchy Hook (အစပိုင်း စိတ်ဝင်စားဖွယ် ဆွဲဆောင်မှု)
-   - Engaging Body Paragraphs (ဇာတ်လမ်း သို့မဟုတ် အကြောင်းအရာ အသေးစိတ်)
-   - Emotional/Thought-provoking Conclusion (အဆုံးသတ် သင်ခန်းစာ သို့မဟုတ် အတွေးအမြင်)
-3. Do NOT include stage directions like [Music starts] or [Camera pans] inside the narration text so that the script can be fed directly to the Text-to-Speech engine without awkward artifacts.
-4. Provide a creative title and the full narration text ready for TTS.
+Strict Instructions:
+1. Write in natural, gripping, spoken-style Burmese Unicode (စာပေသုံး အလွန်ကျပ်တည်းခြင်းမရှိဘဲ နားထောင်သူ စွဲမက်စေမည့် စကားပြောလေသံစစ်စစ်) that sounds phenomenal when read by a Text-to-Speech human voice.
+2. Structure the story with deep narrative progression:
+   - Intriguing Atmospheric Opening & Hook (အစပိုင်း ပတ်ဝန်းကျင် အခြေအနေနှင့် စိတ်ဝင်စားဖွယ် ဇာတ်ကွက်ဆင်ခြင်း)
+   - Deep Development & Build-up (ဇာတ်ကောင်များ၏ ခံစားချက်၊ ဖြစ်ရပ်အဆင့်ဆင့်နှင့် ရင်ခုန်ဖွယ် အခိုက်အတန့်များ)
+   - High Tension Climax (စိတ်လှုပ်ရှားဖွယ် အထွတ်အထိပ် အခန်း)
+   - Satisfying & Memorable Conclusion (အဆုံးသတ် အတွေးအမြင် သို့မဟုတ် စိတ်နှလုံးထိခိုက်စေမည့် အဆုံးသတ်)
+3. Do NOT include bracketed stage directions like [Music starts] or [Scene 1] so that the script can be fed directly to the Text-to-Speech engine without awkward artifacts.
+4. Output a creative title and the complete long narration text.
 
 Respond strictly in valid JSON matching this schema:
 {
@@ -369,14 +370,15 @@ Respond strictly in valid JSON matching this schema:
 }`;
 
     let response = null;
-    const modelsToTry = ['gemini-3.8-flash', 'gemini-3.1-flash-lite'];
+    const modelsToTry = ['gemini-2.5-flash', 'gemini-3.1-flash-lite', 'gemini-3.8-flash'];
     for (const m of modelsToTry) {
       try {
         response = await ai.models.generateContent({
           model: m,
           contents: prompt,
           config: {
-            responseMimeType: 'application/json'
+            responseMimeType: 'application/json',
+            maxOutputTokens: 8192
           }
         });
         if (response && response.text) break;
