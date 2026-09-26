@@ -149,28 +149,40 @@ app.post('/api/text-to-speech', async (req: Request, res: Response) => {
   try {
     console.log(`Starting Natural Edge TTS with voice: ${voice}, length: ${cleanText.length} chars`);
     
-    // Function to run Communicate on a text string
+    // Function to run Communicate on a text string with automatic retry
     const synthesizeBlock = async (txt: string, vName: string): Promise<{ audio: Buffer; srt: string }> => {
-      const comm = new Communicate(txt, {
-        voice: vName,
-        rate: rate || '+0%',
-        pitch: pitch || '+0Hz',
-      });
-      const subMaker = new SubMaker();
-      const parts: Buffer[] = [];
-      for await (const chunk of comm.stream()) {
-        if (chunk.type === 'audio') {
-          parts.push(chunk.data);
-        } else if (chunk.type === 'WordBoundary') {
-          try {
-            subMaker.feed(chunk);
-          } catch (_) {}
+      let lastErr: any = null;
+      for (let attempt = 1; attempt <= 3; attempt++) {
+        try {
+          const comm = new Communicate(txt, {
+            voice: vName,
+            rate: rate || '+0%',
+            pitch: pitch || '+0Hz',
+          });
+          const subMaker = new SubMaker();
+          const parts: Buffer[] = [];
+          for await (const chunk of comm.stream()) {
+            if (chunk.type === 'audio') {
+              parts.push(chunk.data);
+            } else if (chunk.type === 'WordBoundary') {
+              try {
+                subMaker.feed(chunk);
+              } catch (_) {}
+            }
+          }
+          const buf = Buffer.concat(parts);
+          if (buf.length > 0) {
+            return {
+              audio: buf,
+              srt: subMaker.getSrt() || ''
+            };
+          }
+        } catch (err) {
+          lastErr = err;
+          await new Promise(r => setTimeout(r, 150 * attempt));
         }
       }
-      return {
-        audio: Buffer.concat(parts),
-        srt: subMaker.getSrt() || ''
-      };
+      return { audio: Buffer.alloc(0), srt: '' };
     };
 
     let audioBuffer: Buffer = Buffer.alloc(0);
@@ -306,21 +318,34 @@ Schema:
     },
   };
 
-  const response = await ai.models.generateContent({
-    model: 'gemini-3.8-flash',
-    contents: [
-      {
-        role: 'user',
-        parts: [
-          audioPart,
-          { text: prompt }
-        ]
-      }
-    ],
-    config: {
-      responseMimeType: 'application/json'
+  let response = null;
+  const modelsToTry = ['gemini-3.8-flash', 'gemini-3.1-flash-lite'];
+  for (const m of modelsToTry) {
+    try {
+      response = await ai.models.generateContent({
+        model: m,
+        contents: [
+          {
+            role: 'user',
+            parts: [
+              audioPart,
+              { text: prompt }
+            ]
+          }
+        ],
+        config: {
+          responseMimeType: 'application/json'
+        }
+      });
+      if (response && response.text) break;
+    } catch (modelErr: any) {
+      console.warn(`Model ${m} failed, trying fallback:`, modelErr?.message || modelErr);
     }
-  });
+  }
+
+  if (!response || !response.text) {
+    throw new Error('AI transcription service temporarily unavailable.');
+  }
 
   let parsedData = null;
   try {
