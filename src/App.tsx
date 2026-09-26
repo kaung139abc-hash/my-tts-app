@@ -4,7 +4,7 @@ import {
   Sparkles, RefreshCw, AlertCircle, DollarSign,
   Languages, Clock, Subtitles, Volume2, Video, CheckCircle2,
   ExternalLink, Layers, ArrowRight, Settings2, Sliders, UserCheck,
-  FileAudio, Info, Mic, X, BookOpen, Wand2, Lightbulb
+  FileAudio, Info, Mic, X, BookOpen, Wand2, Lightbulb, History, Trash2, RotateCcw
 } from 'lucide-react';
 
 interface VoiceItem {
@@ -29,9 +29,20 @@ interface ScriptResult {
   script: string;
 }
 
+interface HistoryItem {
+  id: string;
+  type: 'tts' | 'story';
+  title: string;
+  content: string;
+  voiceName?: string;
+  audioUrl?: string;
+  characterCount: number;
+  timestamp: number;
+}
+
 export const App: React.FC = () => {
-  // Main Navigation Modes: 'tts' (Text to Speech 10k chars) vs 'writer' (AI Story & Script Generator)
-  const [mainMode, setMainMode] = useState<'tts' | 'writer'>('tts');
+  // Main Navigation Modes: 'tts' (Text to Speech 10k chars) vs 'writer' (AI Story & Script Generator) vs 'history' (Audio & Script Library)
+  const [mainMode, setMainMode] = useState<'tts' | 'writer' | 'history'>('tts');
 
   // ----------------------------------------------------
   // Mode 1: Text-to-Speech (TTS) State
@@ -52,10 +63,57 @@ export const App: React.FC = () => {
   // ----------------------------------------------------
   const [scriptTopic, setScriptTopic] = useState('');
   const [scriptGenre, setScriptGenre] = useState('horror');
-  const [scriptDuration, setScriptDuration] = useState('long-story');
+  const [scriptDuration, setScriptDuration] = useState('5min');
   const [isScriptLoading, setIsScriptLoading] = useState(false);
   const [scriptError, setScriptError] = useState('');
   const [generatedScript, setGeneratedScript] = useState<ScriptResult | null>(null);
+
+  // ----------------------------------------------------
+  // Mode 3: Audio & Story History Library State
+  // ----------------------------------------------------
+  const [historyItems, setHistoryItems] = useState<HistoryItem[]>(() => {
+    try {
+      const saved = localStorage.getItem('voicemaster_history');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  // Save history to LocalStorage
+  const saveToHistory = (item: Omit<HistoryItem, 'id' | 'timestamp'>) => {
+    const newItem: HistoryItem = {
+      ...item,
+      id: `hist_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+      timestamp: Date.now()
+    };
+    setHistoryItems((prev) => {
+      const updated = [newItem, ...prev.slice(0, 49)]; // Keep up to 50 items
+      try {
+        localStorage.setItem('voicemaster_history', JSON.stringify(updated));
+      } catch (_) {}
+      return updated;
+    });
+  };
+
+  const deleteHistoryItem = (id: string) => {
+    setHistoryItems((prev) => {
+      const updated = prev.filter(i => i.id !== id);
+      try {
+        localStorage.setItem('voicemaster_history', JSON.stringify(updated));
+      } catch (_) {}
+      return updated;
+    });
+  };
+
+  const clearAllHistory = () => {
+    if (window.confirm('သမိုင်းမှတ်တမ်း အားလုံးကို ဖျက်ပစ်ရန် သေချာပါသလားခင်ဗျာ?')) {
+      setHistoryItems([]);
+      try {
+        localStorage.removeItem('voicemaster_history');
+      } catch (_) {}
+    }
+  };
 
   // Common UI State
   const [copiedType, setCopiedType] = useState<string | null>(null);
@@ -133,6 +191,18 @@ export const App: React.FC = () => {
       }
 
       setTtsResult(data);
+      const voiceName = voices.find(v => v.id === selectedVoice)?.name || selectedVoice;
+
+      // Automatically save to Audio History Library
+      saveToHistory({
+        type: 'tts',
+        title: `${voiceName} ၏ အသံဖတ်ကြားချက်`,
+        content: ttsText.trim(),
+        voiceName,
+        audioUrl: data.audioUrl,
+        characterCount: data.characterCount
+      });
+
       // Auto-scroll directly to player so user immediately sees and hears audio
       setTimeout(() => {
         resultsSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -173,6 +243,14 @@ export const App: React.FC = () => {
       }
 
       setGeneratedScript(data);
+
+      // Automatically save generated story to History Library
+      saveToHistory({
+        type: 'story',
+        title: data.title,
+        content: data.script,
+        characterCount: data.script.length
+      });
     } catch (err: any) {
       setScriptError(err.message || 'ဇာတ်ညွှန်းဖန်တီးရာတွင် ချွတ်ယွင်းချက်ဖြစ်ပေါ်သွားပါသည်။');
     } finally {
@@ -262,30 +340,45 @@ export const App: React.FC = () => {
 
       {/* Main Content Area */}
       <main className="flex-1 max-w-4xl w-full mx-auto px-4 py-6 flex flex-col gap-6">
-        {/* Navigation Tabs: Mode 1 (TTS 10k Chars) vs Mode 2 (AI Story & Script Generator) */}
-        <div className="bg-[#151824] p-1.5 rounded-2xl border border-white/10 flex items-center gap-2 max-w-lg mx-auto w-full shadow-lg">
+        {/* Navigation Tabs: Mode 1 (TTS 10k Chars) vs Mode 2 (AI Story Generator) vs Mode 3 (Audio History Library) */}
+        <div className="bg-[#151824] p-1.5 rounded-2xl border border-white/10 flex items-center gap-1.5 sm:gap-2 max-w-xl mx-auto w-full shadow-lg">
           <button
             onClick={() => setMainMode('tts')}
-            className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-xs sm:text-sm font-bold transition-all ${
+            className={`flex-1 flex items-center justify-center gap-1.5 sm:gap-2 py-2.5 sm:py-3 rounded-xl text-xs sm:text-sm font-bold transition-all ${
               mainMode === 'tts'
                 ? 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-lg shadow-indigo-600/30'
                 : 'text-slate-400 hover:text-white hover:bg-white/5'
             }`}
           >
-            <Volume2 className="w-4 h-4" />
-            <span>လူအစစ်အသံ TTS (၁၀,၀၀၀ လုံး)</span>
+            <Volume2 className="w-4 h-4 shrink-0" />
+            <span className="truncate">လူအစစ် TTS (၁၀,၀၀၀)</span>
           </button>
 
           <button
             onClick={() => setMainMode('writer')}
-            className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-xs sm:text-sm font-bold transition-all ${
+            className={`flex-1 flex items-center justify-center gap-1.5 sm:gap-2 py-2.5 sm:py-3 rounded-xl text-xs sm:text-sm font-bold transition-all ${
               mainMode === 'writer'
                 ? 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-lg shadow-indigo-600/30'
                 : 'text-slate-400 hover:text-white hover:bg-white/5'
             }`}
           >
-            <Wand2 className="w-4 h-4" />
-            <span>AI ဇာတ်လမ်း/ဇာတ်ညွှန်း ရေးဖွဲ့စက်</span>
+            <Wand2 className="w-4 h-4 shrink-0" />
+            <span className="truncate">AI ဇာတ်လမ်းစက်</span>
+          </button>
+
+          <button
+            onClick={() => setMainMode('history')}
+            className={`flex-1 flex items-center justify-center gap-1.5 sm:gap-2 py-2.5 sm:py-3 rounded-xl text-xs sm:text-sm font-bold transition-all relative ${
+              mainMode === 'history'
+                ? 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-lg shadow-indigo-600/30'
+                : 'text-slate-400 hover:text-white hover:bg-white/5'
+            }`}
+          >
+            <History className="w-4 h-4 shrink-0" />
+            <span className="truncate">မှတ်တမ်း ({historyItems.length})</span>
+            {historyItems.length > 0 && mainMode !== 'history' && (
+              <span className="w-2 h-2 rounded-full bg-indigo-500 absolute top-2 right-2"></span>
+            )}
           </button>
         </div>
 
@@ -698,6 +791,147 @@ export const App: React.FC = () => {
                 </div>
               </div>
             )}
+          </div>
+        )}
+
+        {/* ========================================================================= */}
+        {/* MODE 3: AUDIO & STORY HISTORY LIBRARY (Local Persistent Storage)           */}
+        {/* ========================================================================= */}
+        {mainMode === 'history' && (
+          <div className="space-y-6 animate-in fade-in duration-200">
+            <div className="bg-[#151926] border border-white/10 rounded-2xl p-5 sm:p-6 shadow-2xl space-y-5">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b border-white/10 pb-4">
+                <div>
+                  <h2 className="text-base font-bold text-white flex items-center gap-2">
+                    <History className="w-4 h-4 text-indigo-400" />
+                    <span>အသံဖိုင်နှင့် ဇာတ်လမ်း သမိုင်းမှတ်တမ်းများ (History Library)</span>
+                  </h2>
+                  <p className="text-xs text-slate-400">
+                    ယခင် ထုတ်လုပ်ထားသော အသံဖိုင်များနှင့် ဇာတ်လမ်းများကို ပြန်လည် နားဆင်/ဒေါင်းလုဒ် ရယူနိုင်ပါသည်
+                  </p>
+                </div>
+
+                {historyItems.length > 0 && (
+                  <button
+                    onClick={clearAllHistory}
+                    className="px-3 py-1.5 rounded-xl bg-rose-950/40 hover:bg-rose-900/60 border border-rose-500/30 text-rose-300 text-xs font-semibold flex items-center gap-1.5 transition-all active:scale-95"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>မှတ်တမ်းအားလုံး ဖျက်မည်</span>
+                  </button>
+                )}
+              </div>
+
+              {historyItems.length === 0 ? (
+                <div className="py-12 text-center flex flex-col items-center justify-center gap-3">
+                  <div className="w-14 h-14 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center text-slate-500">
+                    <History className="w-7 h-7" />
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-sm font-bold text-slate-300">မှတ်တမ်း မရှိသေးပါ</p>
+                    <p className="text-xs text-slate-500 max-w-xs">
+                      လူအစစ်အသံ TTS သို့မဟုတ် AI ဇာတ်လမ်း ဖန်တီးလိုက်သည်နှင့် ဤနေရာတွင် အလိုအလျောက် သိမ်းဆည်းပေးပါမည်။
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => setMainMode('tts')}
+                    className="mt-2 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs flex items-center gap-1.5 shadow-lg shadow-indigo-600/30 transition-all"
+                  >
+                    <Volume2 className="w-4 h-4" />
+                    <span>TTS အသံ စတင်ထုတ်ယူမည်</span>
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {historyItems.map((item) => (
+                    <div 
+                      key={item.id} 
+                      className="bg-[#0e111a] border border-white/10 hover:border-indigo-500/30 rounded-xl p-4 transition-all flex flex-col gap-3 shadow-md"
+                    >
+                      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 border-b border-white/5 pb-2.5">
+                        <div className="flex items-center gap-2">
+                          <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                            item.type === 'tts' 
+                              ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' 
+                              : 'bg-purple-500/20 text-purple-300 border border-purple-500/30'
+                          }`}>
+                            {item.type === 'tts' ? '🔊 TTS အသံဖိုင်' : '✍️ AI ဇာတ်လမ်း'}
+                          </span>
+                          <h4 className="text-xs sm:text-sm font-bold text-white truncate max-w-md">
+                            {item.title}
+                          </h4>
+                        </div>
+
+                        <div className="flex items-center gap-2 text-slate-400 text-[11px] self-end sm:self-auto">
+                          <span>{item.characterCount} စာလုံး</span>
+                          <span>•</span>
+                          <span>{new Date(item.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                          <button
+                            onClick={() => deleteHistoryItem(item.id)}
+                            className="p-1 text-slate-500 hover:text-rose-400 rounded transition-colors ml-1"
+                            title="ဖျက်မည်"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Content Preview */}
+                      <p className="text-xs text-slate-300 line-clamp-2 leading-relaxed font-sans bg-black/20 p-2.5 rounded-lg border border-white/5">
+                        {item.content}
+                      </p>
+
+                      {/* Audio Player if TTS */}
+                      {item.type === 'tts' && item.audioUrl && (
+                        <div className="bg-[#08090e] p-2 rounded-lg border border-white/5 flex items-center gap-3">
+                          <audio src={item.audioUrl} controls className="w-full h-8" />
+                          <button
+                            onClick={() => {
+                              triggerMonetizationAd();
+                              const a = document.createElement('a');
+                              a.href = item.audioUrl!;
+                              a.download = `${item.title}_${Date.now()}.mp3`;
+                              a.click();
+                            }}
+                            className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center gap-1 shrink-0 active:scale-95"
+                          >
+                            <Download className="w-3.5 h-3.5" />
+                            <span>MP3</span>
+                          </button>
+                        </div>
+                      )}
+
+                      {/* Action buttons */}
+                      <div className="flex items-center justify-between gap-2 pt-1">
+                        <span className="text-[11px] text-slate-500">
+                          {item.voiceName ? `အသံရှင်: ${item.voiceName}` : 'AI Scriptwriter'}
+                        </span>
+                        
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => {
+                              sendScriptToTTS(item.content);
+                            }}
+                            className="px-2.5 py-1 rounded-lg bg-indigo-950/60 hover:bg-indigo-900/80 border border-indigo-500/30 text-indigo-300 font-semibold text-[11px] flex items-center gap-1 active:scale-95"
+                          >
+                            <RotateCcw className="w-3 h-3" />
+                            <span>TTS ဖြင့် ပြန်လည်ထုတ်မည်</span>
+                          </button>
+
+                          <button
+                            onClick={() => handleCopy(item.content, `hist_${item.id}`)}
+                            className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold text-[11px] flex items-center gap-1 border border-white/10 active:scale-95"
+                          >
+                            {copiedType === `hist_${item.id}` ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                            <span>{copiedType === `hist_${item.id}` ? 'ကူးပြီး' : 'Copy'}</span>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         )}
       </main>
