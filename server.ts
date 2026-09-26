@@ -343,34 +343,31 @@ app.post('/api/generate-story-script', async (req: Request, res: Response) => {
   }
 
   try {
-    const prompt = `You are an acclaimed master viral storyteller, novelist, and video script writer in Myanmar.
-The user wants a LONG, IMMERSIVE, EXTREMELY DETAILED, continuous storytelling narration script in Burmese (Myanmar Unicode) based on:
+    const prompt = `You are an acclaimed master viral storyteller and Burmese novelist.
+The user wants an EXTREMELY LONG, IMMERSIVE, CONTINUOUS storytelling narration script in Myanmar language (Burmese Unicode).
 
 Topic/Theme: "${topic.trim()}"
 Genre: "${genre}" (e.g., horror/သရဲဇာတ်လမ်း, motivation/စိတ်ခွန်အားဖြည့်, tech/နည်းပညာဗဟုသုတ, history/သမိုင်းကြောင်း, fun-facts/စိတ်ဝင်စားဖွယ်ရာများ, bedtime-story/ပုံပြင်)
-Target Story Length: "${duration}" (Write a very long, comprehensive script with rich dialogue, suspense, atmosphere, character details, climax, and emotional depth. Do NOT summarize or write short outlines. Make it a complete, full-length storytelling experience of at least 800 to 2,000 Myanmar words).
+Target Duration Mode: "${duration}"
 
-Strict Instructions:
-1. Write in natural, gripping, spoken-style Burmese Unicode (စာပေသုံး အလွန်ကျပ်တည်းခြင်းမရှိဘဲ နားထောင်သူ စွဲမက်စေမည့် စကားပြောလေသံစစ်စစ်) that sounds phenomenal when read by a Text-to-Speech human voice.
-2. Structure the story with deep narrative progression:
-   - Intriguing Atmospheric Opening & Hook (အစပိုင်း ပတ်ဝန်းကျင် အခြေအနေနှင့် စိတ်ဝင်စားဖွယ် ဇာတ်ကွက်ဆင်ခြင်း)
-   - Deep Development & Build-up (ဇာတ်ကောင်များ၏ ခံစားချက်၊ ဖြစ်ရပ်အဆင့်ဆင့်နှင့် ရင်ခုန်ဖွယ် အခိုက်အတန့်များ)
-   - High Tension Climax (စိတ်လှုပ်ရှားဖွယ် အထွတ်အထိပ် အခန်း)
-   - Satisfying & Memorable Conclusion (အဆုံးသတ် အတွေးအမြင် သို့မဟုတ် စိတ်နှလုံးထိခိုက်စေမည့် အဆုံးသတ်)
-3. Do NOT include bracketed stage directions like [Music starts] or [Scene 1] so that the script can be fed directly to the Text-to-Speech engine without awkward artifacts.
-4. Output a creative title and the complete long narration text.
+CRITICAL LENGTH & DETAIL INSTRUCTIONS:
+1. You MUST generate a very long, complete story script consisting of 10 to 15 richly detailed paragraphs (at least 3,500 to 5,500 Myanmar characters / 8 to 15 minutes of continuous audio).
+2. DO NOT write a summary or short outline! Build the story with thorough scene descriptions, ambient sounds, deep suspense, back-and-forth dialogue between characters, thrilling moments, high tension climax, and an emotionally moving conclusion.
+3. Write in natural, gripping, spoken-style Burmese Unicode (စာပေသုံး အလွန်ကျပ်တည်းခြင်းမရှိဘဲ နားထောင်သူ စွဲမက်စေမည့် စကားပြောလေသံစစ်စစ်) that sounds amazing when read by a Text-to-Speech human voice.
+4. Do NOT include bracketed stage directions like [Music starts] or [Scene 1] so that the script can be fed directly to the Text-to-Speech engine without awkward artifacts.
+5. Provide a creative title and the full continuous narration text.
 
 Respond strictly in valid JSON matching this schema:
 {
   "title": "string (Creative Myanmar Title)",
   "category": "string",
   "wordCount": 0,
-  "estimatedMinutes": "string",
-  "narrationScript": "string (complete continuous spoken text formatted cleanly in paragraphs ready for TTS)"
+  "estimatedMinutes": "string (e.g. 8 - 12 မိနစ်)",
+  "narrationScript": "string (complete long continuous spoken text formatted cleanly in 10-15 paragraphs ready for TTS)"
 }`;
 
     let response = null;
-    const modelsToTry = ['gemini-3.8-flash', 'gemini-3.1-flash-lite', 'gemini-flash-latest'];
+    const modelsToTry = ['gemini-3.1-flash-lite', 'gemini-3.8-flash', 'gemini-flash-latest'];
     for (const m of modelsToTry) {
       try {
         response = await ai.models.generateContent({
@@ -397,7 +394,7 @@ Respond strictly in valid JSON matching this schema:
       title: scriptData.title || topic,
       category: scriptData.category || genre,
       wordCount: scriptData.wordCount || scriptData.narrationScript?.length || 0,
-      estimatedMinutes: scriptData.estimatedMinutes || duration,
+      estimatedMinutes: scriptData.estimatedMinutes || '၈ ~ ၁၂ မိနစ်',
       script: scriptData.narrationScript || ''
     });
   } catch (error: any) {
