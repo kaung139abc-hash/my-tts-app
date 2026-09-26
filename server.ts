@@ -149,102 +149,101 @@ app.post('/api/text-to-speech', async (req: Request, res: Response) => {
   try {
     console.log(`Starting Natural Edge TTS with voice: ${voice}, length: ${cleanText.length} chars`);
     
-    // Split text into natural paragraphs/sentences if long to guarantee reliable delivery without websocket drop
-    const splitIntoChunks = (str: string, maxLen = 1200): string[] => {
-      if (str.length <= maxLen) return [str];
-      const parts: string[] = [];
-      const sentences = str.split(/(?<=[။!?\n])/);
-      let current = '';
-      for (const s of sentences) {
-        if ((current + s).length > maxLen) {
-          if (current.trim()) parts.push(current.trim());
-          current = s;
-        } else {
-          current += s;
+    // Function to run Communicate on a text string
+    const synthesizeBlock = async (txt: string, vName: string): Promise<{ audio: Buffer; srt: string }> => {
+      const comm = new Communicate(txt, {
+        voice: vName,
+        rate: rate || '+0%',
+        pitch: pitch || '+0Hz',
+      });
+      const subMaker = new SubMaker();
+      const parts: Buffer[] = [];
+      for await (const chunk of comm.stream()) {
+        if (chunk.type === 'audio') {
+          parts.push(chunk.data);
+        } else if (chunk.type === 'WordBoundary') {
+          try {
+            subMaker.feed(chunk);
+          } catch (_) {}
         }
       }
-      if (current.trim()) parts.push(current.trim());
-      return parts.length > 0 ? parts : [str];
+      return {
+        audio: Buffer.concat(parts),
+        srt: subMaker.getSrt() || ''
+      };
     };
 
-    const textChunks = splitIntoChunks(cleanText, 1000);
-    const audioChunks: Buffer[] = [];
+    let audioBuffer: Buffer = Buffer.alloc(0);
     let fullSrt = '';
 
-    // Generate with retry per chunk
-    for (let i = 0; i < textChunks.length; i++) {
-      const chunkText = textChunks[i];
-      let chunkAudio: Buffer | null = null;
-      let chunkSrt = '';
-      let lastErr: any = null;
-
-      // Retry up to 2 times per chunk
-      for (let attempt = 0; attempt < 2; attempt++) {
-        try {
-          const communicate = new Communicate(chunkText, {
-            voice,
-            rate: rate || '+0%',
-            pitch: pitch || '+0Hz',
-          });
-
-          const subMaker = new SubMaker();
-          const curAudioParts: Buffer[] = [];
-
-          for await (const chunk of communicate.stream()) {
-            if (chunk.type === 'audio') {
-              curAudioParts.push(chunk.data);
-            } else if (chunk.type === 'WordBoundary') {
-              try {
-                subMaker.feed(chunk);
-              } catch (_) {}
-            }
-          }
-
-          if (curAudioParts.length > 0) {
-            chunkAudio = Buffer.concat(curAudioParts);
-            chunkSrt = subMaker.getSrt() || '';
-            break;
-          }
-        } catch (e: any) {
-          lastErr = e;
-          // small pause before retry
-          await new Promise(r => setTimeout(r, 200));
-        }
-      }
-
-      if (chunkAudio && chunkAudio.length > 0) {
-        audioChunks.push(chunkAudio);
-        if (chunkSrt) {
-          fullSrt += (fullSrt ? '\n\n' : '') + chunkSrt;
-        }
-      } else {
-        console.warn(`Chunk ${i} failed or empty:`, lastErr);
+    // If text is moderate (under 2,500 chars), synthesize directly in one clean shot (zero chunking artifacts)
+    if (cleanText.length <= 2500) {
+      try {
+        const result = await synthesizeBlock(cleanText, voice);
+        audioBuffer = result.audio;
+        fullSrt = result.srt;
+      } catch (directErr: any) {
+        console.warn('Direct synthesis failed, falling back:', directErr?.message || directErr);
       }
     }
 
-    const audioBuffer = Buffer.concat(audioChunks);
+    // If still no audio or text is longer than 2,500 chars, chunk by meaningful paragraphs
     if (audioBuffer.length === 0) {
-      // Fallback: If selected voice failed due to region or temporary issue, try primary natural fallback
+      const splitIntoChunks = (str: string, maxLen = 1500): string[] => {
+        const rawBlocks = str.split(/\n+/).map(s => s.trim()).filter(Boolean);
+        const chunks: string[] = [];
+        let curr = '';
+
+        for (const block of rawBlocks) {
+          // Check if block contains actual alphanumeric or letters (not just punctuation)
+          if (!/[a-zA-Z0-9\u1000-\u109F\uAA60-\uAA7F]/.test(block)) {
+            continue;
+          }
+          if ((curr + '\n' + block).length > maxLen) {
+            if (curr.trim()) chunks.push(curr.trim());
+            curr = block;
+          } else {
+            curr = curr ? `${curr}\n${block}` : block;
+          }
+        }
+        if (curr.trim()) chunks.push(curr.trim());
+        return chunks.length > 0 ? chunks : [str];
+      };
+
+      const textChunks = splitIntoChunks(cleanText);
+      const audioChunks: Buffer[] = [];
+
+      for (const chunkText of textChunks) {
+        if (!chunkText || !/[a-zA-Z0-9\u1000-\u109F]/.test(chunkText)) continue;
+        try {
+          const resBlock = await synthesizeBlock(chunkText, voice);
+          if (resBlock.audio.length > 0) {
+            audioChunks.push(resBlock.audio);
+            if (resBlock.srt) {
+              fullSrt += (fullSrt ? '\n\n' : '') + resBlock.srt;
+            }
+          }
+        } catch (cErr: any) {
+          console.warn('Chunk synthesis error:', cErr?.message || cErr);
+        }
+      }
+
+      if (audioChunks.length > 0) {
+        audioBuffer = Buffer.concat(audioChunks);
+      }
+    }
+
+    // Ultimate fallback if chosen voice temporarily failed
+    if (audioBuffer.length === 0) {
       const fallbackVoice = voice === 'my-MM-ThihaNeural' ? 'my-MM-NilarNeural' : 'en-US-AndrewMultilingualNeural';
-      console.log(`Retrying with fallback voice: ${fallbackVoice}`);
-      const fallbackComm = new Communicate(cleanText.slice(0, 1000), { voice: fallbackVoice });
-      const fallbackParts: Buffer[] = [];
-      for await (const chunk of fallbackComm.stream()) {
-        if (chunk.type === 'audio') fallbackParts.push(chunk.data);
-      }
-      const fallbackBuffer = Buffer.concat(fallbackParts);
-      if (fallbackBuffer.length > 0) {
-        const base64Audio = fallbackBuffer.toString('base64');
-        return res.json({
-          success: true,
-          audioUrl: `data:audio/mp3;base64,${base64Audio}`,
-          audioBytes: fallbackBuffer.length,
-          srt: '',
-          characterCount: cleanText.length,
-          voiceUsed: fallbackVoice,
-        });
-      }
-      throw new Error('No audio was received from speech synthesis service.');
+      console.log(`Using resilient fallback voice: ${fallbackVoice}`);
+      const fallbackRes = await synthesizeBlock(cleanText.slice(0, 1500), fallbackVoice);
+      audioBuffer = fallbackRes.audio;
+      fullSrt = fallbackRes.srt;
+    }
+
+    if (audioBuffer.length === 0) {
+      throw new Error('Speech synthesis produced no audio data.');
     }
 
     const base64Audio = audioBuffer.toString('base64');
