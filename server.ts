@@ -1191,6 +1191,55 @@ app.post('/api/download-subtitles', (req: Request, res: Response) => {
   return res.send(content);
 });
 
+// -------------------------------------------------------------------------------------
+// Standalone AI Image Generator
+// -------------------------------------------------------------------------------------
+app.post('/api/generate-standalone-image', async (req: Request, res: Response) => {
+  const { prompt, aspectRatio = '9:16', style = 'cinematic' } = req.body;
+  if (!prompt) {
+    return res.status(400).json({ error: 'Please provide a prompt.' });
+  }
+
+  try {
+    const fullPrompt = `${prompt}, ${style} style, high quality, 8k resolution, detailed texture, masterfully composed`;
+    
+    const imgRes = await ai.models.generateContent({
+      model: 'gemini-3.1-flash-lite-image',
+      contents: {
+        parts: [{ text: fullPrompt }]
+      },
+      config: {
+        imageConfig: { 
+          aspectRatio: aspectRatio as any, 
+          imageSize: "1K" 
+        }
+      }
+    });
+
+    let imageUrl = '';
+    if (imgRes.candidates?.[0]?.content?.parts) {
+      for (const part of imgRes.candidates[0].content.parts) {
+        if (part.inlineData) {
+          imageUrl = `data:image/png;base64,${part.inlineData.data}`;
+          break;
+        }
+      }
+    }
+
+    if (!imageUrl) {
+      throw new Error('Failed to generate image data.');
+    }
+
+    return res.json({
+      success: true,
+      imageUrl
+    });
+  } catch (err: any) {
+    console.error('Image Generation Error:', err);
+    return res.status(500).json({ error: 'AI ရုပ်ပုံ ဖန်တီးရာတွင် အမှားအယွင်း ဖြစ်ပေါ်ခဲ့ပါသည်။' });
+  }
+});
+
 // Static assets / SPA setup
 const isProduction = process.env.NODE_ENV === 'production';
 if (isProduction) {

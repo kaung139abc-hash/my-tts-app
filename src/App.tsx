@@ -71,8 +71,8 @@ interface DialogueResult {
 }
 
 export const App: React.FC = () => {
-  // Main Navigation Modes: 'tts' | 'dialogue' | 'writer' | 'video' | 'history'
-  const [mainMode, setMainMode] = useState<'tts' | 'dialogue' | 'writer' | 'video' | 'history'>('tts');
+  // Main Navigation Modes: 'tts' | 'dialogue' | 'writer' | 'video' | 'history' | 'imager'
+  const [mainMode, setMainMode] = useState<'tts' | 'dialogue' | 'writer' | 'video' | 'history' | 'imager'>('tts');
 
   // ----------------------------------------------------
   // Mode 1: Text-to-Speech (TTS) State
@@ -256,6 +256,48 @@ export const App: React.FC = () => {
       } catch (_) {}
       return updated;
     });
+  };
+
+  // ----------------------------------------------------
+  // Mode 4: Standalone AI Image Generator State
+  // ----------------------------------------------------
+  const [imagePrompt, setImagePrompt] = useState('');
+  const [imageGenAspectRatio, setImageGenAspectRatio] = useState<'9:16' | '16:9' | '1:1'>('9:16');
+  const [imageStyle, setImageStyle] = useState('cinematic');
+  const [isImageGenerating, setIsImageGenerating] = useState(false);
+  const [imageResultUrl, setImageResultUrl] = useState('');
+  const [imageError, setImageError] = useState('');
+
+  const handleGenerateStandaloneImage = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!imagePrompt.trim()) return;
+
+    setIsImageGenerating(true);
+    setImageError('');
+    setImageResultUrl('');
+
+    try {
+      const res = await fetch('/api/generate-standalone-image', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          prompt: imagePrompt,
+          aspectRatio: imageGenAspectRatio,
+          style: imageStyle
+        })
+      });
+
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || 'AI ရုပ်ပုံ ဖန်တီး၍ မရပါ။');
+      }
+
+      setImageResultUrl(data.imageUrl);
+    } catch (err: any) {
+      setImageError(err.message || 'ရုပ်ပုံ ဖန်တီးမှု မအောင်မြင်ပါ။');
+    } finally {
+      setIsImageGenerating(false);
+    }
   };
 
   const clearAllHistory = () => {
@@ -738,7 +780,7 @@ export const App: React.FC = () => {
       {/* Main Content Area */}
       <main className="flex-1 max-w-4xl w-full mx-auto px-4 py-6 flex flex-col gap-6">
         {/* Navigation Tabs */}
-        <div className="bg-[#151824] p-2 rounded-2xl border border-white/15 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2 max-w-4xl mx-auto w-full shadow-2xl shadow-black/50">
+        <div className="bg-[#151824] p-2 rounded-2xl border border-white/15 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2 max-w-4xl mx-auto w-full shadow-2xl shadow-black/50">
           <button
             onClick={() => setMainMode('tts')}
             className={`w-full flex items-center justify-center gap-1.5 py-2.5 px-2 rounded-xl text-xs font-bold transition-all ${
@@ -776,6 +818,18 @@ export const App: React.FC = () => {
           </button>
 
           <button
+            onClick={() => setMainMode('imager')}
+            className={`w-full flex items-center justify-center gap-1.5 py-2.5 px-2 rounded-xl text-xs font-bold transition-all ${
+              mainMode === 'imager'
+                ? 'bg-gradient-to-r from-cyan-600 to-blue-600 text-white shadow-lg shadow-cyan-600/40 ring-2 ring-cyan-400/50'
+                : 'text-cyan-300 hover:text-white hover:bg-cyan-500/10 bg-[#0e111a] border border-cyan-500/20'
+            }`}
+          >
+            <Image className="w-4 h-4 shrink-0 text-cyan-400" />
+            <span>🖼️ ပုံထုတ်စက်</span>
+          </button>
+
+          <button
             onClick={() => setMainMode('video')}
             className={`w-full flex items-center justify-center gap-1.5 py-2.5 px-2 rounded-xl text-xs font-bold transition-all ${
               mainMode === 'video'
@@ -784,7 +838,7 @@ export const App: React.FC = () => {
             }`}
           >
             <Video className="w-4 h-4 shrink-0 text-purple-400" />
-            <span>🎬 ဗီဒီယို ပြုလုပ်စက်</span>
+            <span>🎬 ဗီဒီယို</span>
           </button>
 
           <button
@@ -796,9 +850,173 @@ export const App: React.FC = () => {
             }`}
           >
             <History className="w-4 h-4 shrink-0 text-emerald-400" />
-            <span>📂 သမိုင်း ({historyItems.length})</span>
+            <span>📂 မှတ်တမ်း</span>
           </button>
         </div>
+
+        {/* ========================================================================= */}
+        {/* MODE 4: AI IMAGE GENERATOR                                               */}
+        {/* ========================================================================= */}
+        {mainMode === 'imager' && (
+          <div className="space-y-6 animate-in fade-in duration-200">
+            <div className="bg-[#151926] border border-white/10 rounded-2xl p-5 sm:p-6 shadow-2xl space-y-5">
+              <div className="border-b border-white/10 pb-3">
+                <h2 className="text-base font-bold text-white flex items-center gap-2">
+                  <Image className="w-5 h-5 text-cyan-400" />
+                  <span>AI ရုပ်ပုံ ထုတ်လုပ်စက် (Image Generator)</span>
+                </h2>
+                <p className="text-xs text-slate-400">
+                  မိမိစိတ်ကူးထဲက ပုံရိပ်များကို စာသားဖြင့် ရေးသားပြီး အလှပဆုံး AI ရုပ်ပုံများ ထုတ်လုပ်ပါ
+                </p>
+              </div>
+
+              <form onSubmit={handleGenerateStandaloneImage} className="space-y-5">
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
+                    <Wand2 className="w-4 h-4 text-cyan-400" />
+                    <span>ရုပ်ပုံအတွက် စာသား ရိုက်ထည့်ပါ (English ဖြင့် ရေးပါက ပိုမိုလှပပါသည်):</span>
+                  </label>
+                  <textarea
+                    value={imagePrompt}
+                    onChange={(e) => setImagePrompt(e.target.value)}
+                    placeholder="ဥပမာ - A cinematic landscape of a mystical mountain forest at sunset, 8k, photorealistic..."
+                    rows={3}
+                    className="w-full bg-[#0d0f17] border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-cyan-500 transition-all resize-none shadow-inner"
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-slate-300">အရွယ်အစား (Aspect Ratio):</label>
+                    <div className="grid grid-cols-3 gap-2">
+                      {[
+                        { id: '9:16', name: '📱 9:16', desc: 'TikTok' },
+                        { id: '16:9', name: '💻 16:9', desc: 'YouTube' },
+                        { id: '1:1', name: '📷 1:1', desc: 'Square' }
+                      ].map(r => (
+                        <button
+                          key={r.id}
+                          type="button"
+                          onClick={() => setImageGenAspectRatio(r.id as any)}
+                          className={`py-2 px-1 rounded-xl text-[10px] font-bold border transition-all flex flex-col items-center ${
+                            imageGenAspectRatio === r.id
+                              ? 'bg-cyan-600/20 border-cyan-500 text-cyan-200'
+                              : 'bg-black/20 border-white/5 text-slate-400 hover:bg-white/5'
+                          }`}
+                        >
+                          <span>{r.name}</span>
+                          <span className="opacity-50 font-normal">{r.desc}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-slate-300">Style (အလှဆင်ပုံစံ):</label>
+                    <div className="grid grid-cols-2 gap-2">
+                      {[
+                        { id: 'cinematic', name: '🎬 Cinematic' },
+                        { id: 'photorealistic', name: '📸 Realistic' },
+                        { id: 'anime', name: '🏯 Anime' },
+                        { id: 'digital-art', name: '🎨 Digital Art' }
+                      ].map(s => (
+                        <button
+                          key={s.id}
+                          type="button"
+                          onClick={() => setImageStyle(s.id)}
+                          className={`py-2 px-2 rounded-xl text-[10px] font-bold border transition-all ${
+                            imageStyle === s.id
+                              ? 'bg-cyan-600/20 border-cyan-500 text-cyan-200'
+                              : 'bg-black/20 border-white/5 text-slate-400 hover:bg-white/5'
+                          }`}
+                        >
+                          {s.name}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={isImageGenerating || !imagePrompt.trim()}
+                  className="w-full py-3.5 rounded-xl bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white font-bold text-sm shadow-xl shadow-cyan-600/30 flex items-center justify-center gap-2 transition-all active:scale-[0.98] disabled:opacity-50"
+                >
+                  {isImageGenerating ? (
+                    <>
+                      <RefreshCw className="w-4 h-4 animate-spin" />
+                      <span>AI က ရုပ်ပုံကို ရေးဆွဲနေပါသည်...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="w-4 h-4" />
+                      <span>AI ရုပ်ပုံ ဖန်တီးမည် (Generate Image)</span>
+                    </>
+                  )}
+                </button>
+              </form>
+            </div>
+
+            {imageError && (
+              <div className="p-4 bg-rose-500/10 border border-rose-500/20 rounded-xl flex items-center gap-3 text-rose-400 text-xs">
+                <AlertCircle className="w-4 h-4 shrink-0" />
+                <p>{imageError}</p>
+              </div>
+            )}
+
+            {imageResultUrl && (
+              <div className="bg-[#151926] border border-cyan-500/30 rounded-2xl p-5 shadow-2xl space-y-4 animate-in zoom-in-95 duration-300">
+                <div className="flex items-center justify-between border-b border-white/10 pb-3">
+                  <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                    <span>AI ရုပ်ပုံ အောင်မြင်စွာ ဖန်တီးပြီးပါပြီ</span>
+                  </h3>
+                </div>
+
+                <div className="relative group max-w-sm mx-auto overflow-hidden rounded-2xl border border-white/10 shadow-2xl">
+                  <img src={imageResultUrl} alt="AI Result" className="w-full h-auto object-contain" />
+                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-3">
+                     <button 
+                       onClick={() => {
+                         const a = document.createElement('a');
+                         a.href = imageResultUrl;
+                         a.download = `AI_Image_${Date.now()}.png`;
+                         a.click();
+                       }}
+                       className="p-3 bg-white text-black rounded-full hover:scale-110 transition-all shadow-lg"
+                       title="Download"
+                     >
+                       <Download className="w-5 h-5" />
+                     </button>
+                  </div>
+                </div>
+
+                <div className="flex flex-col sm:flex-row gap-3 pt-2">
+                  <button
+                    onClick={() => {
+                      setVideoBgImage(imageResultUrl);
+                      setMainMode('video');
+                      window.scrollTo({ top: 0, behavior: 'smooth' });
+                    }}
+                    className="flex-1 py-3 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-lg transition-all active:scale-95"
+                  >
+                    <Video className="w-4 h-4" />
+                    <span>ဤပုံကို ဗီဒီယိုနောက်ခံအဖြစ် အသုံးပြုမည်</span>
+                  </button>
+
+                  <a
+                    href={imageResultUrl}
+                    download={`AI_Image_${Date.now()}.png`}
+                    className="flex-1 py-3 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-lg transition-all active:scale-95 border border-white/10"
+                  >
+                    <Download className="w-4 h-4" />
+                    <span>ဖုန်းထဲသို့ သိမ်းဆည်းမည် (Download)</span>
+                  </a>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* ========================================================================= */}
         {/* MODE 1: TEXT-TO-SPEECH (TTS) - Unlimited Chars, 9 Human Voices            */}
