@@ -1637,7 +1637,21 @@ export const App: React.FC = () => {
                                 🎭 {scene.mood}
                               </span>
                             </div>
-                            <p className="text-xs text-slate-300 font-mono bg-black/30 p-2.5 rounded-lg border border-white/5 select-all">
+
+                            {scene.imageUrl && (
+                              <div className="aspect-video w-full rounded-lg overflow-hidden border border-white/10 shadow-lg group relative">
+                                <img 
+                                  src={scene.imageUrl} 
+                                  alt={scene.title}
+                                  className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                                />
+                                <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-end p-2">
+                                  <span className="text-[10px] text-white font-bold">AI Generated Vision</span>
+                                </div>
+                              </div>
+                            )}
+
+                            <p className="text-[11px] text-slate-300 font-mono bg-black/30 p-2.5 rounded-lg border border-white/5 select-all leading-relaxed">
                               {scene.visualPrompt}
                             </p>
                           </div>

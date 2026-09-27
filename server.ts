@@ -856,41 +856,19 @@ app.post('/api/generate-story-images', async (req: Request, res: Response) => {
   }
 
   try {
-    const promptExtractor = `You are a professional film storyboard artist and art director.
-Based on the following Myanmar story script titled "${title}", create 4 distinct, highly detailed cinematic visual scene descriptions in English for AI image generation (Midjourney, DALL-E 3, Gemini Image). Each scene should capture a key moment (1. Opening Scene, 2. Rising Action, 3. Climax, 4. Resolution).
-Make the prompts detailed, cinematic, high quality, photorealistic, matching the "${genre}" mood.
+    const promptExtractor = `You are a professional film storyboard artist.
+Based on the story "${title}", create 4 cinematic visual scene descriptions in English for AI image generation. Each scene: (1. Opening, 2. Rising Action, 3. Climax, 4. Resolution).
+Match "${genre}" mood.
 
 Respond strictly in valid JSON:
 {
   "scenes": [
-    {
-      "sceneNumber": 1,
-      "title": "Scene 1: Opening Atmosphere",
-      "visualPrompt": "Detailed English prompt for AI image generator...",
-      "mood": "Eerie & Mysterious"
-    },
-    {
-      "sceneNumber": 2,
-      "title": "Scene 2: Rising Tension",
-      "visualPrompt": "Detailed English prompt for AI image generator...",
-      "mood": "Suspenseful"
-    },
-    {
-      "sceneNumber": 3,
-      "title": "Scene 3: Climax Moment",
-      "visualPrompt": "Detailed English prompt for AI image generator...",
-      "mood": "Heart-pounding Action"
-    },
-    {
-      "sceneNumber": 4,
-      "title": "Scene 4: Resolution & Ending",
-      "visualPrompt": "Detailed English prompt for AI image generator...",
-      "mood": "Haunting Aftermath"
-    }
+    { "sceneNumber": 1, "title": "Opening", "visualPrompt": "English prompt...", "mood": "mood" },
+    { "sceneNumber": 2, "title": "Rising Action", "visualPrompt": "English prompt...", "mood": "mood" },
+    { "sceneNumber": 3, "title": "Climax", "visualPrompt": "English prompt...", "mood": "mood" },
+    { "sceneNumber": 4, "title": "Resolution", "visualPrompt": "English prompt...", "mood": "mood" }
   ]
-}
-Script excerpt:
-${script.slice(0, 3000)}`;
+}`;
 
     const resExtraction = await ai.models.generateContent({
       model: 'gemini-3.8-flash',
@@ -899,15 +877,44 @@ ${script.slice(0, 3000)}`;
     });
 
     const parsed = JSON.parse(resExtraction.text || '{}');
-    const scenes = parsed.scenes || [];
+    const scenePrompts = parsed.scenes || [];
+    
+    // Actually generate the images for each scene
+    const scenesWithImages = await Promise.all(scenePrompts.map(async (scene: any) => {
+      try {
+        const imgRes = await ai.models.generateContent({
+          model: 'gemini-3.1-flash-lite-image',
+          contents: {
+            parts: [{ text: `${scene.visualPrompt}, cinematic lighting, photorealistic, 8k resolution, cinematic atmosphere` }]
+          },
+          config: {
+            imageConfig: { aspectRatio: "16:9", imageSize: "1K" }
+          }
+        });
+
+        let imageUrl = '';
+        if (imgRes.candidates?.[0]?.content?.parts) {
+          for (const part of imgRes.candidates[0].content.parts) {
+            if (part.inlineData) {
+              imageUrl = `data:image/png;base64,${part.inlineData.data}`;
+              break;
+            }
+          }
+        }
+        return { ...scene, imageUrl };
+      } catch (e) {
+        console.warn(`Failed to generate image for scene ${scene.sceneNumber}:`, e);
+        return { ...scene, imageUrl: '' };
+      }
+    }));
 
     return res.json({
       success: true,
-      scenes
+      scenes: scenesWithImages
     });
   } catch (err: any) {
     console.error('Story Image Generation Error:', err);
-    return res.status(500).json({ error: 'AI ဇာတ်ကွက် ဖန်တီးရာတွင် အမှားအယွင်း ဖြစ်ပေါ်ခဲ့ပါသည်။' });
+    return res.status(500).json({ error: 'AI ဇာတ်ကွက် နှင့် ရုပ်ပုံများ ဖန်တီးရာတွင် အမှားအယွင်း ဖြစ်ပေါ်ခဲ့ပါသည်။' });
   }
 });
 
@@ -922,7 +929,7 @@ app.post('/api/generate-story-video', async (req: Request, res: Response) => {
 
   const timestamp = Date.now();
   const audioPath = path.join(os.tmpdir(), `story_audio_${timestamp}.mp3`);
-  const svgPath = path.join(os.tmpdir(), `story_bg_${timestamp}.svg`);
+  const bgImagePath = path.join(os.tmpdir(), `story_bg_${timestamp}.png`);
   const videoPath = path.join(os.tmpdir(), `story_video_${timestamp}.mp4`);
 
   try {
@@ -942,48 +949,56 @@ app.post('/api/generate-story-video', async (req: Request, res: Response) => {
     }
     fs.writeFileSync(audioPath, audioBuf);
 
-    // 2. Generate gorgeous local SVG cinematic background image (Guaranteed 100% reliable)
-    let primaryColor = '#1e1b4b';
-    let glowColor = '#7c3aed';
-    let accentColor = '#db2777';
-    if (genre === 'horror') {
-      primaryColor = '#1c1917';
-      glowColor = '#c2410c';
-      accentColor = '#b91c1c';
-    } else if (genre === 'motivation') {
-      primaryColor = '#022c22';
-      glowColor = '#059669';
-      accentColor = '#10b981';
-    } else if (genre === 'romance') {
-      primaryColor = '#4a0404';
-      glowColor = '#e11d48';
-      accentColor = '#f43f5e';
+    // 2. Determine background image (Gemini Generated Image for maximum "AI" feel)
+    let imageGenerated = false;
+    try {
+      const imgRes = await ai.models.generateContent({
+        model: 'gemini-3.1-flash-lite-image',
+        contents: {
+          parts: [{ text: `Cinematic background illustration for a ${genre} story titled "${title}", highly detailed, photorealistic, 8k, vertical 9:16 aspect ratio` }]
+        },
+        config: {
+          imageConfig: { aspectRatio: "9:16", imageSize: "1K" }
+        }
+      });
+
+      if (imgRes.candidates?.[0]?.content?.parts) {
+        for (const part of imgRes.candidates[0].content.parts) {
+          if (part.inlineData) {
+            const imgBuffer = Buffer.from(part.inlineData.data, 'base64');
+            fs.writeFileSync(bgImagePath, imgBuffer);
+            imageGenerated = true;
+            break;
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('Gemini image generation failed for video, using Unsplash fallback:', e);
     }
 
-    const svgContent = `
-<svg width="360" height="640" xmlns="http://www.w3.org/2000/svg">
-  <defs>
-    <radialGradient id="bg" cx="50%" cy="30%" r="80%">
-      <stop offset="0%" stop-color="${primaryColor}" />
-      <stop offset="60%" stop-color="#0f172a" />
-      <stop offset="100%" stop-color="#030712" />
-    </radialGradient>
-    <radialGradient id="glow1" cx="25%" cy="25%" r="50%">
-      <stop offset="0%" stop-color="${glowColor}" stop-opacity="0.6" />
-      <stop offset="100%" stop-color="${glowColor}" stop-opacity="0" />
-    </radialGradient>
-    <radialGradient id="glow2" cx="80%" cy="75%" r="60%">
-      <stop offset="0%" stop-color="${accentColor}" stop-opacity="0.5" />
-      <stop offset="100%" stop-color="${accentColor}" stop-opacity="0" />
-    </radialGradient>
-  </defs>
-  <rect width="100%" height="100%" fill="url(#bg)" />
-  <circle cx="100" cy="150" r="160" fill="url(#glow1)" />
-  <circle cx="280" cy="480" r="200" fill="url(#glow2)" />
-</svg>`;
-    fs.writeFileSync(svgPath, svgContent);
+    if (!imageGenerated) {
+      // Unsplash Fallback
+      let unsplashUrl = 'https://images.unsplash.com/photo-1519681393784-d120267933ba?q=80&w=1080&auto=format&fit=crop';
+      if (genre === 'horror') unsplashUrl = 'https://images.unsplash.com/photo-1509198397868-475647b2a1e5?q=80&w=1080&auto=format&fit=crop';
+      else if (genre === 'motivation') unsplashUrl = 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?q=80&w=1080&auto=format&fit=crop';
+      else if (genre === 'romance') unsplashUrl = 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?q=80&w=1080&auto=format&fit=crop';
+      
+      try {
+        const uRes = await fetch(unsplashUrl);
+        const uBuf = Buffer.from(await uRes.arrayBuffer());
+        fs.writeFileSync(bgImagePath, uBuf);
+        imageGenerated = true;
+      } catch (uErr) {
+        console.warn('Unsplash fetch failed, using solid color PNG:', uErr);
+        // Guaranteed Fallback: Render a color frame as PNG using ffmpeg
+        let colorHex = '0x1e1b4b';
+        if (genre === 'horror') colorHex = '0x1c1917';
+        await execAsync(`ffmpeg -y -f lavfi -i color=c=${colorHex}:s=360x640 -frames:v 1 "${bgImagePath}"`);
+        imageGenerated = true;
+      }
+    }
 
-    // 3. Render MP4 video using ffmpeg (Full length with -shortest, NO bottom watermark, NO speaker names)
+    // 3. Render MP4 video using ffmpeg
     let waveColors = '0x818cf8|0xc084fc';
     if (genre === 'horror') waveColors = '0xf97316|0xf43f5e';
     else if (genre === 'motivation') waveColors = '0x10b981|0x34d399';
@@ -1003,13 +1018,13 @@ app.post('/api/generate-story-video', async (req: Request, res: Response) => {
     ];
     const filterString = filterParts.join(';');
 
-    const ffmpegCmd = `ffmpeg -y -loop 1 -i "${svgPath}" -i "${audioPath}" -filter_complex "${filterString}" -map "[v]" -map 1:a -c:v libx264 -preset ultrafast -tune zerolatency -threads 0 -r 5 -pix_fmt yuv420p -shortest "${videoPath}"`;
+    const ffmpegCmd = `ffmpeg -y -loop 1 -i "${bgImagePath}" -i "${audioPath}" -filter_complex "${filterString}" -map "[v]" -map 1:a -c:v libx264 -preset ultrafast -tune zerolatency -threads 0 -r 5 -pix_fmt yuv420p -shortest "${videoPath}"`;
 
     try {
       await execAsync(ffmpegCmd);
     } catch (ffErr) {
       console.warn('Story video primary render failed, falling back to simple render:', ffErr);
-      const fallbackCmd = `ffmpeg -y -loop 1 -i "${svgPath}" -i "${audioPath}" -c:v libx264 -preset ultrafast -tune zerolatency -r 5 -pix_fmt yuv420p -shortest "${videoPath}"`;
+      const fallbackCmd = `ffmpeg -y -loop 1 -i "${bgImagePath}" -i "${audioPath}" -c:v libx264 -preset ultrafast -tune zerolatency -r 5 -pix_fmt yuv420p -shortest "${videoPath}"`;
       await execAsync(fallbackCmd);
     }
 
@@ -1021,7 +1036,7 @@ app.post('/api/generate-story-video', async (req: Request, res: Response) => {
     const videoBase64 = `data:video/mp4;base64,${videoBuf.toString('base64')}`;
 
     try { fs.unlinkSync(audioPath); } catch (_) {}
-    try { fs.unlinkSync(svgPath); } catch (_) {}
+    try { fs.unlinkSync(bgImagePath); } catch (_) {}
     try { fs.unlinkSync(videoPath); } catch (_) {}
 
     return res.json({
@@ -1032,7 +1047,7 @@ app.post('/api/generate-story-video', async (req: Request, res: Response) => {
   } catch (err: any) {
     console.error('Story Video Generation Error:', err);
     try { fs.unlinkSync(audioPath); } catch (_) {}
-    try { fs.unlinkSync(svgPath); } catch (_) {}
+    try { fs.unlinkSync(bgImagePath); } catch (_) {}
     try { fs.unlinkSync(videoPath); } catch (_) {}
     return res.status(500).json({ error: err.message || 'AI ဇာတ်လမ်းဗီဒီယို ဖန်တီးရာတွင် အမှားအယွင်း ဖြစ်ပေါ်ခဲ့ပါသည်။' });
   }
