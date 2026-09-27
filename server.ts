@@ -487,7 +487,8 @@ app.post('/api/audio-to-video', async (req: Request, res: Response) => {
     theme = 'cyberpunk',
     waveStyle = 'cline',
     customWaveColor = '',
-    waveYPercentage = 50
+    waveYPercentage = 50,
+    bgImageData = ''
   } = req.body;
 
   if (!audioData) {
@@ -497,16 +498,28 @@ app.post('/api/audio-to-video', async (req: Request, res: Response) => {
   const timestamp = Date.now();
   const randomId = Math.random().toString(36).substr(2, 5);
   const inputAudioPath = `/tmp/video_in_${timestamp}_${randomId}.mp3`;
+  const inputImagePath = `/tmp/video_bg_${timestamp}_${randomId}.png`;
   const outputVideoPath = `/tmp/video_out_${timestamp}_${randomId}.mp4`;
 
   try {
-    // 1. Extract base64
+    // 1. Extract audio base64
     let base64Content = audioData;
     if (audioData.includes('base64,')) {
       base64Content = audioData.split('base64,')[1];
     }
     const audioBuffer = Buffer.from(base64Content, 'base64');
     fs.writeFileSync(inputAudioPath, audioBuffer);
+
+    // 1.5 Extract image base64 if provided
+    let hasCustomBg = false;
+    if (bgImageData) {
+      let imgBase64 = bgImageData;
+      if (bgImageData.includes('base64,')) {
+        imgBase64 = bgImageData.split('base64,')[1];
+      }
+      fs.writeFileSync(inputImagePath, Buffer.from(imgBase64, 'base64'));
+      hasCustomBg = true;
+    }
 
     // 2. Set dimensions according to aspect ratio (Ultra-optimized for full-length 5fps rendering to prevent OOM)
     let width = 360;
@@ -543,19 +556,27 @@ app.post('/api/audio-to-video', async (req: Request, res: Response) => {
     // Custom wave Y position based on percentage (0% top, 100% bottom, 50% middle)
     const waveY = Math.round((height * (waveYPercentage / 100)) - (waveH / 2));
 
-    const cleanTitle = (titleText || 'VoiceMaster AI').replace(/['"\\]/g, '').slice(0, 50);
+    const cleanTitle = (titleText || '').replace(/['"\\]/g, '').slice(0, 50);
+    const bgFilter = hasCustomBg 
+      ? `[1:v]scale=${width}:${height},setsar=1[bg]`
+      : `color=c=${bgHex}:s=${width}x${height}[bg]`;
+
     // Optimization: render showwaves at a tiny size (120x60 at 5fps) and scale up instantly using neighbor interpolation for 10x speedup
     const filterParts = [
-      `color=c=${bgHex}:s=${width}x${height}[bg]`,
+      bgFilter,
       `[0:a]showwaves=r=5:s=120x60:mode=${waveStyle}:colors=${waveColors},scale=${waveW}:${waveH}:flags=neighbor[waves]`,
-      `[bg][waves]overlay=(W-w)/2:${waveY}[v1]`,
-      `[v1]drawtext=text='${cleanTitle}':fontcolor=white:fontsize=${Math.round(width * 0.05)}:x=(w-text_w)/2:y=${Math.round(height * 0.15)}[v2]`,
-      `[v2]drawtext=text='VoiceMaster Studio • TikTok/Reels Visualizer':fontcolor=0x94a3b8:fontsize=${Math.round(width * 0.03)}:x=(w-text_w)/2:y=${Math.round(height * 0.88)}[v]`
+      `[bg][waves]overlay=(W-w)/2:${waveY}[v1]`
     ];
 
+    if (cleanTitle) {
+      filterParts.push(`[v1]drawtext=text='${cleanTitle}':fontcolor=white:fontsize=${Math.round(width * 0.05)}:x=(w-text_w)/2:y=${Math.round(height * 0.15)}[v]`);
+    } else {
+      filterParts.push(`[v1]copy[v]`);
+    }
+
     const filterString = filterParts.join(';');
-    // Capped to 60 seconds (-t 60) for lightning-fast 2-second rendering that never times out or hits OOM
-    const ffmpegCmd = `ffmpeg -y -i "${inputAudioPath}" -t 60 -filter_complex "${filterString}" -map "[v]" -map 0:a -c:v libx264 -preset ultrafast -tune zerolatency -threads 0 -r 5 -pix_fmt yuv420p -c:a copy "${outputVideoPath}"`;
+    const inputArgs = hasCustomBg ? `-i "${inputAudioPath}" -loop 1 -i "${inputImagePath}"` : `-i "${inputAudioPath}"`;
+    const ffmpegCmd = `ffmpeg -y ${inputArgs} -t 60 -filter_complex "${filterString}" -map "[v]" -map 0:a -c:v libx264 -preset ultrafast -tune zerolatency -threads 0 -r 5 -pix_fmt yuv420p -shortest "${outputVideoPath}"`;
 
     try {
       await execAsync(ffmpegCmd);
@@ -564,12 +585,12 @@ app.post('/api/audio-to-video', async (req: Request, res: Response) => {
       
       // Fallback filter without drawtext (Guaranteed to work on any system without fonts installed)
       const fallbackFilterParts = [
-        `color=c=${bgHex}:s=${width}x${height}[bg]`,
+        bgFilter,
         `[0:a]showwaves=r=5:s=120x60:mode=${waveStyle}:colors=${waveColors},scale=${waveW}:${waveH}:flags=neighbor[waves]`,
         `[bg][waves]overlay=(W-w)/2:${waveY}[v]`
       ];
       const fallbackFilterString = fallbackFilterParts.join(';');
-      const fallbackCmd = `ffmpeg -y -i "${inputAudioPath}" -t 60 -filter_complex "${fallbackFilterString}" -map "[v]" -map 0:a -c:v libx264 -preset ultrafast -tune zerolatency -threads 0 -r 5 -pix_fmt yuv420p -c:a copy "${outputVideoPath}"`;
+      const fallbackCmd = `ffmpeg -y ${inputArgs} -t 60 -filter_complex "${fallbackFilterString}" -map "[v]" -map 0:a -c:v libx264 -preset ultrafast -tune zerolatency -threads 0 -r 5 -pix_fmt yuv420p -shortest "${outputVideoPath}"`;
       
       await execAsync(fallbackCmd);
     }
@@ -597,6 +618,7 @@ app.post('/api/audio-to-video', async (req: Request, res: Response) => {
   } finally {
     try {
       if (fs.existsSync(inputAudioPath)) fs.unlinkSync(inputAudioPath);
+      if (fs.existsSync(inputImagePath)) fs.unlinkSync(inputImagePath);
       if (fs.existsSync(outputVideoPath)) fs.unlinkSync(outputVideoPath);
     } catch (_) {}
   }
@@ -1023,8 +1045,14 @@ app.post('/api/generate-story-video', async (req: Request, res: Response) => {
     try {
       await execAsync(ffmpegCmd);
     } catch (ffErr) {
-      console.warn('Story video primary render failed, falling back to simple render:', ffErr);
-      const fallbackCmd = `ffmpeg -y -loop 1 -i "${bgImagePath}" -i "${audioPath}" -c:v libx264 -preset ultrafast -tune zerolatency -r 5 -pix_fmt yuv420p -shortest "${videoPath}"`;
+      console.warn('Story video primary render failed, falling back to visualizer without text:', ffErr);
+      // Fallback without drawtext
+      const fallbackFilter = [
+        `[0:v]scale=${width}:${height},setsar=1[bg]`,
+        `[1:a]showwaves=r=5:s=120x60:mode=cline:colors=${waveColors},scale=${waveW}:${waveH}:flags=neighbor[waves]`,
+        `[bg][waves]overlay=(W-w)/2:${waveY}[v]`
+      ].join(';');
+      const fallbackCmd = `ffmpeg -y -loop 1 -i "${bgImagePath}" -i "${audioPath}" -filter_complex "${fallbackFilter}" -map "[v]" -map 1:a -c:v libx264 -preset ultrafast -tune zerolatency -r 5 -pix_fmt yuv420p -shortest "${videoPath}"`;
       await execAsync(fallbackCmd);
     }
 

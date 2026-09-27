@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { 
   FileText, Upload, Download, Copy, Check, Play, Pause,
-  Sparkles, RefreshCw, AlertCircle, DollarSign,
+  Sparkles, RefreshCw, AlertCircle, DollarSign, Image,
   Languages, Clock, Subtitles, Volume2, Video, CheckCircle2,
   ExternalLink, Layers, ArrowRight, Settings2, Sliders, UserCheck,
   FileAudio, Info, Mic, X, BookOpen, Wand2, Lightbulb, History, Trash2, RotateCcw, Music, Music2, Disc,
@@ -138,21 +138,23 @@ export const App: React.FC = () => {
   // ----------------------------------------------------
   const [showVideoModal, setShowVideoModal] = useState(false);
   const [videoAudioData, setVideoAudioData] = useState('');
-  const [videoTitleText, setVideoTitleText] = useState('VoiceMaster AI Story');
+  const [videoTitleText, setVideoTitleText] = useState('');
   const [videoSubtitleText, setVideoSubtitleText] = useState('');
   const [videoAspectRatio, setVideoAspectRatio] = useState<'9:16' | '16:9' | '1:1'>('9:16');
   const [videoTheme, setVideoTheme] = useState<'cyberpunk' | 'indigo' | 'sunset' | 'emerald' | 'dark'>('cyberpunk');
   const [videoWaveStyle, setVideoWaveStyle] = useState<'cline' | 'line' | 'point'>('cline');
   const [videoCustomWaveColor, setVideoCustomWaveColor] = useState('');
   const [videoWaveY, setVideoWaveY] = useState(50); // Default to middle
+  const [videoBgImage, setVideoBgImage] = useState<string>(''); // Base64 of custom background
   const [isVideoGenerating, setIsVideoGenerating] = useState(false);
   const [videoResultUrl, setVideoResultUrl] = useState('');
   const [videoError, setVideoError] = useState('');
 
   const openVideoModalForAudio = (audioUrl: string, title?: string, subtitle?: string) => {
     setVideoAudioData(audioUrl);
-    setVideoTitleText(title || 'VoiceMaster Studio');
+    setVideoTitleText(title || '');
     setVideoSubtitleText(subtitle || '');
+    setVideoBgImage('');
     setVideoResultUrl('');
     setVideoError('');
     setMainMode('video');
@@ -177,7 +179,8 @@ export const App: React.FC = () => {
           theme: videoTheme,
           waveStyle: videoWaveStyle,
           customWaveColor: videoCustomWaveColor,
-          waveYPercentage: videoWaveY
+          waveYPercentage: videoWaveY,
+          bgImageData: videoBgImage
         })
       });
 
@@ -1655,13 +1658,29 @@ export const App: React.FC = () => {
                               {scene.visualPrompt}
                             </p>
                           </div>
-                          <button
-                            onClick={() => handleCopy(scene.visualPrompt, `scene_${scene.sceneNumber}`)}
-                            className="w-full py-2 px-3 rounded-lg bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow transition-all active:scale-95"
-                          >
-                            {copiedType === `scene_${scene.sceneNumber}` ? <Check className="w-3.5 h-3.5 text-emerald-300" /> : <Copy className="w-3.5 h-3.5" />}
-                            <span>{copiedType === `scene_${scene.sceneNumber}` ? 'Prompt ကူးယူပြီး' : 'AI Prompt ကူးယူမည် (Copy)'}</span>
-                          </button>
+                          <div className="flex flex-col gap-2">
+                            {scene.imageUrl && (
+                              <button
+                                onClick={() => {
+                                  setVideoBgImage(scene.imageUrl);
+                                  setVideoTitleText(generatedScript?.title || '');
+                                  setMainMode('video');
+                                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                                }}
+                                className="w-full py-2 px-3 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow transition-all active:scale-95"
+                              >
+                                <Video className="w-3.5 h-3.5" />
+                                <span>ဗီဒီယို ပြုလုပ်မည် (Create Video)</span>
+                              </button>
+                            )}
+                            <button
+                              onClick={() => handleCopy(scene.visualPrompt, `scene_${scene.sceneNumber}`)}
+                              className="w-full py-2 px-3 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs flex items-center justify-center gap-1.5 border border-white/5 transition-all active:scale-95"
+                            >
+                              {copiedType === `scene_${scene.sceneNumber}` ? <Check className="w-3.5 h-3.5 text-emerald-300" /> : <Copy className="w-3.5 h-3.5" />}
+                              <span>{copiedType === `scene_${scene.sceneNumber}` ? 'Prompt ကူးယူပြီး' : 'AI Prompt ကူးယူမည် (Copy)'}</span>
+                            </button>
+                          </div>
                         </div>
                       ))}
                     </div>
@@ -1933,9 +1952,55 @@ export const App: React.FC = () => {
                   {/* Themes */}
                   <div className="space-y-1.5">
                     <label className="text-xs font-bold text-slate-300">
-                      နောက်ခံ Style နှင့် Wave Colors (Theme Select):
+                      နောက်ခံ ပုံစံ (Background & Theme):
                     </label>
-                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                    
+                    {/* Background Image Upload */}
+                    <div className="p-3 bg-black/20 border border-white/5 rounded-xl space-y-3">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tight">Custom Background Image (Optional)</span>
+                        {videoBgImage && (
+                          <button 
+                            onClick={() => setVideoBgImage('')}
+                            className="text-[10px] text-rose-400 hover:text-rose-300 transition-all font-bold"
+                          >
+                            ဖယ်ထုတ်မည်
+                          </button>
+                        )}
+                      </div>
+                      
+                      {!videoBgImage ? (
+                        <label className="flex flex-col items-center justify-center py-4 border-2 border-dashed border-white/10 rounded-xl hover:border-indigo-500/50 hover:bg-white/5 transition-all cursor-pointer group">
+                          <Image className="w-6 h-6 text-slate-500 group-hover:text-indigo-400 mb-1" />
+                          <span className="text-[11px] text-slate-400 group-hover:text-slate-200">နောက်ခံပုံ တင်ရန် (Upload Background)</span>
+                          <input 
+                            type="file" 
+                            accept="image/*" 
+                            className="hidden" 
+                            onChange={(e) => {
+                              const file = e.target.files?.[0];
+                              if (file) {
+                                const reader = new FileReader();
+                                reader.onloadend = () => {
+                                  setVideoBgImage(reader.result as string);
+                                };
+                                reader.readAsDataURL(file);
+                              }
+                            }}
+                          />
+                        </label>
+                      ) : (
+                        <div className="relative aspect-video w-full rounded-lg overflow-hidden border border-white/10">
+                          <img src={videoBgImage} className="w-full h-full object-cover" alt="Background" />
+                          <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity">
+                            <span className="text-[10px] text-white font-bold">တင်ပြီးပါပြီ</span>
+                          </div>
+                        </div>
+                      )}
+                      <p className="text-[10px] text-slate-500 italic">ပုံမတင်လျှင် အောက်ပါ Theme အရောင်များကို အသုံးပြုပါမည်။</p>
+                    </div>
+
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mt-2">
                       {[
                         { id: 'cyberpunk', name: '🌌 Neon Cyberpunk', color: 'bg-slate-900 border-indigo-500' },
                         { id: 'indigo', name: '🔮 Indigo Galaxy', color: 'bg-indigo-950 border-indigo-400' },
