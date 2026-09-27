@@ -617,6 +617,11 @@ export const App: React.FC = () => {
 
       setGeneratedScript(data);
 
+      // Automatically start generating scene images for the story
+      setTimeout(() => {
+        handleGenerateStoryImages(data);
+      }, 500);
+
       // Automatically save generated story to History Library
       saveToHistory({
         type: 'story',
@@ -631,8 +636,9 @@ export const App: React.FC = () => {
     }
   };
 
-  const handleGenerateStoryImages = async () => {
-    if (!generatedScript) return;
+  const handleGenerateStoryImages = async (scriptData?: ScriptResult) => {
+    const targetScript = scriptData || generatedScript;
+    if (!targetScript) return;
     setIsStoryImagesLoading(true);
     setStoryImagesError('');
     setStoryImages([]);
@@ -642,8 +648,8 @@ export const App: React.FC = () => {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          title: generatedScript.title,
-          script: generatedScript.script,
+          title: targetScript.title,
+          script: targetScript.script,
           genre: scriptGenre
         })
       });
@@ -659,7 +665,7 @@ export const App: React.FC = () => {
     }
   };
 
-  const handleGenerateStoryVideo = async () => {
+  const handleGenerateStoryVideo = async (customBgData?: string) => {
     if (!generatedScript) return;
     setIsStoryVideoLoading(true);
     setStoryVideoError('');
@@ -673,7 +679,8 @@ export const App: React.FC = () => {
           title: generatedScript.title,
           script: generatedScript.script,
           genre: scriptGenre,
-          waveYPercentage: videoWaveY
+          waveYPercentage: videoWaveY,
+          bgImageData: customBgData || ''
         })
       });
       const responseText = await res.text();
@@ -1878,25 +1885,35 @@ export const App: React.FC = () => {
                           </div>
                           <div className="flex flex-col gap-2">
                             {scene.imageUrl && (
-                              <button
-                                onClick={() => {
-                                  setVideoBgImage(scene.imageUrl);
-                                  setVideoTitleText(generatedScript?.title || '');
-                                  setMainMode('video');
-                                  window.scrollTo({ top: 0, behavior: 'smooth' });
-                                }}
-                                className="w-full py-2 px-3 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow transition-all active:scale-95"
-                              >
-                                <Video className="w-3.5 h-3.5" />
-                                <span>ဗီဒီယို ပြုလုပ်မည် (Create Video)</span>
-                              </button>
+                              <div className="grid grid-cols-2 gap-2">
+                                <button
+                                  onClick={() => handleGenerateStoryVideo(scene.imageUrl)}
+                                  disabled={isStoryVideoLoading}
+                                  className="py-2 px-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[10px] flex items-center justify-center gap-1 shadow transition-all active:scale-95 disabled:opacity-50"
+                                >
+                                  <Video className="w-3 h-3" />
+                                  <span>ဇာတ်လမ်းဗီဒီယို ထုတ်မည်</span>
+                                </button>
+                                <button
+                                  onClick={() => {
+                                    setVideoBgImage(scene.imageUrl);
+                                    setVideoTitleText(generatedScript?.title || '');
+                                    setMainMode('video');
+                                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                                  }}
+                                  className="py-2 px-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-[10px] flex items-center justify-center gap-1 shadow transition-all active:scale-95"
+                                >
+                                  <Settings2 className="w-3 h-3" />
+                                  <span>ဒီဇိုင်း ပြင်ဆင်မည်</span>
+                                </button>
+                              </div>
                             )}
                             <button
                               onClick={() => handleCopy(scene.visualPrompt, `scene_${scene.sceneNumber}`)}
-                              className="w-full py-2 px-3 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs flex items-center justify-center gap-1.5 border border-white/5 transition-all active:scale-95"
+                              className="w-full py-1.5 px-3 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 font-bold text-[9px] flex items-center justify-center gap-1.5 border border-white/5 transition-all active:scale-95"
                             >
-                              {copiedType === `scene_${scene.sceneNumber}` ? <Check className="w-3.5 h-3.5 text-emerald-300" /> : <Copy className="w-3.5 h-3.5" />}
-                              <span>{copiedType === `scene_${scene.sceneNumber}` ? 'Prompt ကူးယူပြီး' : 'AI Prompt ကူးယူမည် (Copy)'}</span>
+                              {copiedType === `scene_${scene.sceneNumber}` ? <Check className="w-3 h-3 text-emerald-300" /> : <Copy className="w-3 h-3" />}
+                              <span>{copiedType === `scene_${scene.sceneNumber}` ? 'Prompt ကူးယူပြီး' : 'AI Prompt ကူးယူမည်'}</span>
                             </button>
                           </div>
                         </div>

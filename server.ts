@@ -944,7 +944,7 @@ Respond strictly in valid JSON:
 // Direct AI Story Video Generator (Combines AI Image + Audio + Waveform into MP4 directly)
 // -------------------------------------------------------------------------------------
 app.post('/api/generate-story-video', async (req: Request, res: Response) => {
-  const { title, script, genre = 'horror', voice = 'my-MM-ThihaNeural', waveYPercentage = 62.5 } = req.body;
+  const { title, script, genre = 'horror', voice = 'my-MM-ThihaNeural', waveYPercentage = 62.5, bgImageData = '' } = req.body;
   if (!script) {
     return res.status(400).json({ error: 'No script provided' });
   }
@@ -957,66 +957,61 @@ app.post('/api/generate-story-video', async (req: Request, res: Response) => {
   try {
     console.log(`Generating AI Story Video for "${title}"...`);
 
-    // 1. Synthesize audio buffer using edge-tts Communicate (Full length)
+    // 1. Synthesize audio
     const comm = new Communicate(script, { voice, rate: '+0%', pitch: '+0Hz' });
     const audioParts: Buffer[] = [];
     for await (const chunk of comm.stream()) {
-      if (chunk.type === 'audio' && chunk.data) {
-        audioParts.push(chunk.data);
-      }
+      if (chunk.type === 'audio' && chunk.data) audioParts.push(chunk.data);
     }
     const audioBuf = Buffer.concat(audioParts);
-    if (audioBuf.length === 0) {
-      throw new Error('Audio synthesis failed for story.');
-    }
+    if (audioBuf.length === 0) throw new Error('Audio synthesis failed.');
     fs.writeFileSync(audioPath, audioBuf);
 
-    // 2. Determine background image (Gemini Generated Image for maximum "AI" feel)
+    // 2. Background Image logic
     let imageGenerated = false;
-    try {
-      const imgRes = await ai.models.generateContent({
-        model: 'gemini-3.1-flash-lite-image',
-        contents: {
-          parts: [{ text: `Cinematic background illustration for a ${genre} story titled "${title}", highly detailed, photorealistic, 8k, vertical 9:16 aspect ratio` }]
-        },
-        config: {
-          imageConfig: { aspectRatio: "9:16", imageSize: "1K" }
-        }
-      });
 
-      if (imgRes.candidates?.[0]?.content?.parts) {
-        for (const part of imgRes.candidates[0].content.parts) {
-          if (part.inlineData) {
-            const imgBuffer = Buffer.from(part.inlineData.data, 'base64');
-            fs.writeFileSync(bgImagePath, imgBuffer);
-            imageGenerated = true;
-            break;
-          }
-        }
+    // Use provided image data if available
+    if (bgImageData) {
+      try {
+        let imgBase64 = bgImageData;
+        if (bgImageData.includes('base64,')) imgBase64 = bgImageData.split('base64,')[1];
+        fs.writeFileSync(bgImagePath, Buffer.from(imgBase64, 'base64'));
+        imageGenerated = true;
+      } catch (e) {
+        console.warn('Provided bgImageData failed, falling back to generation:', e);
       }
-    } catch (e) {
-      console.warn('Gemini image generation failed for video, using Unsplash fallback:', e);
     }
 
+    // Generate if not provided or failed
     if (!imageGenerated) {
-      // Unsplash Fallback
+      try {
+        const imgRes = await ai.models.generateContent({
+          model: 'gemini-3.1-flash-lite-image',
+          contents: { parts: [{ text: `Cinematic background for story "${title}", ${genre} mood, photorealistic, 8k, 9:16 vertical` }] },
+          config: { imageConfig: { aspectRatio: "9:16", imageSize: "1K" } }
+        });
+        if (imgRes.candidates?.[0]?.content?.parts) {
+          for (const part of imgRes.candidates[0].content.parts) {
+            if (part.inlineData) {
+              fs.writeFileSync(bgImagePath, Buffer.from(part.inlineData.data, 'base64'));
+              imageGenerated = true;
+              break;
+            }
+          }
+        }
+      } catch (e) { console.warn('Gemini image failed:', e); }
+    }
+
+    // Unsplash Fallback
+    if (!imageGenerated) {
       let unsplashUrl = 'https://images.unsplash.com/photo-1519681393784-d120267933ba?q=80&w=1080&auto=format&fit=crop';
       if (genre === 'horror') unsplashUrl = 'https://images.unsplash.com/photo-1509198397868-475647b2a1e5?q=80&w=1080&auto=format&fit=crop';
-      else if (genre === 'motivation') unsplashUrl = 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?q=80&w=1080&auto=format&fit=crop';
-      else if (genre === 'romance') unsplashUrl = 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?q=80&w=1080&auto=format&fit=crop';
-      
       try {
         const uRes = await fetch(unsplashUrl);
-        const uBuf = Buffer.from(await uRes.arrayBuffer());
-        fs.writeFileSync(bgImagePath, uBuf);
+        fs.writeFileSync(bgImagePath, Buffer.from(await uRes.arrayBuffer()));
         imageGenerated = true;
       } catch (uErr) {
-        console.warn('Unsplash fetch failed, using solid color PNG:', uErr);
-        // Guaranteed Fallback: Render a color frame as PNG using ffmpeg
-        let colorHex = '0x1e1b4b';
-        if (genre === 'horror') colorHex = '0x1c1917';
-        await execAsync(`ffmpeg -y -f lavfi -i color=c=${colorHex}:s=360x640 -frames:v 1 "${bgImagePath}"`);
-        imageGenerated = true;
+        await execAsync(`ffmpeg -y -f lavfi -i color=c=0x1e1b4b:s=360x640 -frames:v 1 "${bgImagePath}"`);
       }
     }
 
