@@ -268,6 +268,11 @@ export const App: React.FC = () => {
   const [imageResultUrl, setImageResultUrl] = useState('');
   const [imageError, setImageError] = useState('');
 
+  // New Pro Features States
+  const [voiceEffect, setVoiceEffect] = useState<'none' | 'echo' | 'deep' | 'radio'>('none');
+  const [enableSubtitles, setEnableSubtitles] = useState(false);
+  const [scriptTemplate, setScriptTemplate] = useState('none');
+
   const handleGenerateStandaloneImage = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (!imagePrompt.trim()) return;
@@ -535,7 +540,8 @@ export const App: React.FC = () => {
           rate: speechRate,
           pitch: speechPitch,
           bgm: selectedBgm,
-          bgmVolume: bgmVolume
+          bgmVolume: bgmVolume,
+          voiceEffect: voiceEffect
         })
       });
 
@@ -599,7 +605,8 @@ export const App: React.FC = () => {
         body: JSON.stringify({
           topic: scriptTopic.trim(),
           genre: scriptGenre,
-          duration: scriptDuration
+          duration: scriptDuration,
+          template: scriptTemplate // New: Script Template
         })
       });
 
@@ -680,7 +687,10 @@ export const App: React.FC = () => {
           script: generatedScript.script,
           genre: scriptGenre,
           waveYPercentage: videoWaveY,
-          bgImageData: customBgData || ''
+          bgImageData: customBgData || '',
+          allSceneImages: storyImages.map(img => img.imageUrl).filter(Boolean), // Send all 4 scene images for multi-scene video
+          enableSubtitles: enableSubtitles,
+          voiceEffect: voiceEffect
         })
       });
       const responseText = await res.text();
@@ -1190,29 +1200,50 @@ export const App: React.FC = () => {
                     </div>
                   </div>
 
-                  <div className="space-y-1.5">
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="text-slate-300 font-semibold flex items-center gap-1.5">
-                        <Sliders className="w-3.5 h-3.5 text-indigo-400" />
-                        <span>အသံအနိမ့်အမြင့် (Pitch Tone)</span>
-                      </span>
-                      <span className="text-indigo-400 font-mono font-bold">{speechPitch}</span>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="text-slate-300 font-semibold flex items-center gap-1.5">
+                          <Sliders className="w-3.5 h-3.5 text-indigo-400" />
+                          <span>အသံအနိမ့်အမြင့် (Pitch Tone)</span>
+                        </span>
+                        <span className="text-indigo-400 font-mono font-bold">{speechPitch}</span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        {['-10Hz', '-5Hz', '+0Hz', '+5Hz', '+10Hz'].map((pitch) => (
+                          <button
+                            key={pitch}
+                            type="button"
+                            onClick={() => setSpeechPitch(pitch)}
+                            className={`flex-1 py-1 rounded text-[11px] font-bold transition-all ${
+                              speechPitch === pitch
+                                ? 'bg-indigo-600 text-white shadow'
+                                : 'bg-white/5 text-slate-400 hover:bg-white/10'
+                            }`}
+                          >
+                            {pitch === '+0Hz' ? 'မူလ' : pitch}
+                          </button>
+                        ))}
+                      </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                      {['-10Hz', '-5Hz', '+0Hz', '+5Hz', '+10Hz'].map((pitch) => (
-                        <button
-                          key={pitch}
-                          type="button"
-                          onClick={() => setSpeechPitch(pitch)}
-                          className={`flex-1 py-1 rounded text-[11px] font-bold transition-all ${
-                            speechPitch === pitch
-                              ? 'bg-indigo-600 text-white shadow'
-                              : 'bg-white/5 text-slate-400 hover:bg-white/10'
-                          }`}
-                        >
-                          {pitch === '+0Hz' ? 'မူလ' : pitch}
-                        </button>
-                      ))}
+
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="text-slate-300 font-semibold flex items-center gap-1.5">
+                          <Zap className="w-3.5 h-3.5 text-indigo-400" />
+                          <span>အသံ၏ အထူးပြုလုပ်ချက် (Voice Effect)</span>
+                        </span>
+                      </div>
+                      <select 
+                        value={voiceEffect}
+                        onChange={(e) => setVoiceEffect(e.target.value as any)}
+                        className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-1.5 text-xs text-white focus:outline-none focus:border-indigo-500"
+                      >
+                        <option value="none">ပုံမှန် (Normal)</option>
+                        <option value="echo">ပဲ့တင်သံ (Echo)</option>
+                        <option value="deep">အသံကြီး/အသံဩ (Deep)</option>
+                        <option value="radio">ရေဒီယိုအသံ (Radio)</option>
+                      </select>
                     </div>
                   </div>
                 </div>
@@ -1706,37 +1737,39 @@ export const App: React.FC = () => {
                 </div>
 
                 {/* 3. Duration Selector */}
-                <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-slate-300 flex items-center justify-between">
-                    <span className="flex items-center gap-1.5">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
                       <Clock className="w-4 h-4 text-indigo-400" />
-                      <span>ဇာတ်လမ်း အရှည် ရွေးချယ်ပါ (Duration Select)</span>
-                    </span>
-                    <span className="text-[11px] text-purple-400 font-semibold bg-purple-500/10 px-2.5 py-0.5 rounded-full border border-purple-500/20">
-                      ✓ စာလုံးနှုန်းတိုက်ခြင်း- ၁ မိနစ် = ၁,၅၀၀ လုံးနှုန်း
-                    </span>
-                  </label>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    {[
-                      { id: '3min', label: '၃ မိနစ်စာ (စာလုံးရေ ၄,၅၀၀ ခန့်)', desc: 'TikTok, Reels တိုတိုရှင်းရှင်း ဇာတ်လမ်းဆန်း' },
-                      { id: '5min', label: '၅ မိနစ်စာ (စာလုံးရေ ၇,၅၀၀ ခန့်)', desc: 'ဝတ္ထုတို / YouTube ဗီဒီယို (အထူးအကြံပြု)' },
-                      { id: '8min', label: '၈ မိနစ်စာ (စာလုံးရေ ၁၂,၀၀၀ ခန့်) ⭐️', desc: 'YouTube Mid-roll Ads ရရှိရန် အကောင်းဆုံးအရှည်' },
-                      { id: '10min', label: '၁၀ မိနစ်စာ (စာလုံးရေ ၁၅,၀၀၀ ခန့်)', desc: 'စိတ်ဝင်စားဖွယ် ဇာတ်လမ်းရှည်ကြီးများ ဖန်တီးစက်' }
-                    ].map((d) => (
-                      <button
-                        key={d.id}
-                        type="button"
-                        onClick={() => setScriptDuration(d.id)}
-                        className={`p-3 rounded-xl border text-left transition-all ${
-                          scriptDuration === d.id
-                            ? 'bg-purple-600 text-white border-purple-500 shadow-lg shadow-purple-600/30 ring-2 ring-purple-400/40'
-                            : 'bg-[#0d0f17] border-white/10 text-slate-400 hover:text-white hover:border-white/20'
-                        }`}
-                      >
-                        <span className="block text-xs font-bold text-white mb-0.5">{d.label}</span>
-                        <span className="block text-[10px] opacity-75">{d.desc}</span>
-                      </button>
-                    ))}
+                      <span>ဇာတ်လမ်း အရှည် (Duration)</span>
+                    </label>
+                    <select 
+                      value={scriptDuration}
+                      onChange={(e) => setScriptDuration(e.target.value)}
+                      className="w-full bg-[#0d0f17] border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none focus:border-indigo-500"
+                    >
+                      <option value="3min">၃ မိနစ် (Short)</option>
+                      <option value="5min">၅ မိနစ် (Standard)</option>
+                      <option value="8min">၈ မိနစ် (Pro)</option>
+                      <option value="10min">၁၀ မိနစ် (Long)</option>
+                    </select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
+                      <FileText className="w-4 h-4 text-emerald-400" />
+                      <span>ပုံစံခွက် (Script Template)</span>
+                    </label>
+                    <select 
+                      value={scriptTemplate}
+                      onChange={(e) => setScriptTemplate(e.target.value)}
+                      className="w-full bg-[#0d0f17] border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none focus:border-indigo-500"
+                    >
+                      <option value="none">ပုံမှန် (Normal)</option>
+                      <option value="news">သတင်းတင်ဆက်မှု (News Report)</option>
+                      <option value="tiktok">TikTok/Reels Script</option>
+                      <option value="documentary">မှတ်တမ်းတင် (Documentary)</option>
+                      <option value="health">ကျန်းမာရေး (Health Tips)</option>
+                    </select>
                   </div>
                 </div>
 
@@ -1935,23 +1968,51 @@ export const App: React.FC = () => {
                       </p>
                     </div>
 
-                    <button
-                      onClick={handleGenerateStoryVideo}
-                      disabled={isStoryVideoLoading}
-                      className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-pink-600 via-purple-600 to-indigo-600 hover:from-pink-500 hover:to-indigo-500 text-white font-bold text-xs flex items-center gap-2 shadow-xl shadow-pink-600/35 active:scale-95 disabled:opacity-50 shrink-0"
-                    >
-                      {isStoryVideoLoading ? (
-                        <>
-                          <RefreshCw className="w-4 h-4 animate-spin" />
-                          <span>AI ဗီဒီယို တိုက်ရိုက်ဖန်တီးနေပါသည်... (၂ စက္ကန့်)</span>
-                        </>
-                      ) : (
-                        <>
-                          <Sparkles className="w-4 h-4" />
-                          <span>🎬 AI ဗီဒီယို တိုက်ရိုက်ထုတ်မည်</span>
-                        </>
-                      )}
-                    </button>
+                    <div className="flex flex-col gap-3">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div className="space-y-1.5">
+                          <label className="text-[10px] font-bold text-slate-400 uppercase">Voice Effect:</label>
+                          <select 
+                            value={voiceEffect}
+                            onChange={(e) => setVoiceEffect(e.target.value as any)}
+                            className="w-full bg-black/40 border border-white/10 rounded-lg px-2 py-1.5 text-[10px] text-white focus:outline-none"
+                          >
+                            <option value="none">Normal</option>
+                            <option value="echo">Echo Effect</option>
+                            <option value="deep">Deep Voice</option>
+                            <option value="radio">Radio Style</option>
+                          </select>
+                        </div>
+                        <div className="flex items-center gap-2 pt-4">
+                          <input 
+                            type="checkbox" 
+                            id="sub_toggle"
+                            checked={enableSubtitles} 
+                            onChange={(e) => setEnableSubtitles(e.target.checked)}
+                            className="w-3.5 h-3.5 rounded border-white/10 bg-black/20 text-pink-500 focus:ring-pink-500" 
+                          />
+                          <label htmlFor="sub_toggle" className="text-[10px] font-bold text-slate-300 cursor-pointer">Auto Subtitles (စာတန်းထိုး)</label>
+                        </div>
+                      </div>
+
+                      <button
+                        onClick={() => handleGenerateStoryVideo()}
+                        disabled={isStoryVideoLoading}
+                        className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-pink-600 via-purple-600 to-indigo-600 hover:from-pink-500 hover:to-indigo-500 text-white font-bold text-xs flex items-center gap-2 shadow-xl shadow-pink-600/35 active:scale-95 disabled:opacity-50 shrink-0"
+                      >
+                        {isStoryVideoLoading ? (
+                          <>
+                            <RefreshCw className="w-4 h-4 animate-spin" />
+                            <span>Pro ဗီဒီယို ဖန်တီးနေပါသည်...</span>
+                          </>
+                        ) : (
+                          <>
+                            <Video className="w-4 h-4" />
+                            <span>🎬 Pro ဗီဒီယို တိုက်ရိုက်ထုတ်မည် (Multi-Scene)</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
                   </div>
 
                   {storyVideoError && (
